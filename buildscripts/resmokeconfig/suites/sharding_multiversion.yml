@@ -2,7 +2,7 @@ test_kind: js_test
 
 selector:
   roots:
-  - jstests/sharding/*.js
+  - jstests/sharding/mongos_no_replica_set_refresh.js
   exclude_with_any_tags:
   - multiversion_incompatible
   - requires_fcv_44
