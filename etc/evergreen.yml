@@ -7010,6 +7010,8 @@ tasks:
   - func: "generate randomized multiversion tasks"
     vars:
       use_large_distro: "true"
+      continue_on_failure: false
+      resmoke_repeat_suites: 100
       resmoke_args: --storageEngine=wiredTiger
       fallback_num_sub_suites: 32
       use_multiversion: /data/multiversion
