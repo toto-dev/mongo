@@ -119,6 +119,7 @@ reconfig(rsObj, rsConfig);
 
 checkNumHosts(rsConfig.members.length);
 
+// TODO remove this comment
 jsTest.log("Waiting for config.shards to reflect that " + removedNode.host + " has been re-added.");
 assert.soon(
     function() {
