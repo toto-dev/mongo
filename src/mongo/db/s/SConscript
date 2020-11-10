@@ -560,6 +560,13 @@ env.CppUnitTest(
 )
 
 env.CppUnitTest(
+    target='ddl_operation_test',
+    source=[
+        'ddl_operation_test.cpp',
+    ]
+)
+
+env.CppUnitTest(
     target='db_s_config_server_test',
     source=[
         'config/initial_split_policy_test.cpp',
