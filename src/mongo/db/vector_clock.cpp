@@ -348,6 +348,9 @@ bool VectorClock::gossipOut(OperationContext* opCtx,
     ComponentSet toGossip = clientSessionTags & transport::Session::kInternalClient
         ? _gossipOutInternal()
         : _gossipOutExternal();
+    logd("XOXO: gossip OUT session '{}'",
+         (clientSessionTags & transport::Session::kInternalClient) ? "Internal" : "External");
+
 
     auto now = getTime();
     bool clusterTimeWasOutput = false;
@@ -376,6 +379,9 @@ void VectorClock::gossipIn(OperationContext* opCtx,
     ComponentSet toGossip = clientSessionTags & transport::Session::kInternalClient
         ? _gossipInInternal()
         : _gossipInExternal();
+
+    logd("XOXO: gossip IN session '{}'",
+         (clientSessionTags & transport::Session::kInternalClient) ? "Internal" : "External");
 
     LogicalTimeArray newTime;
     for (auto component : toGossip) {
