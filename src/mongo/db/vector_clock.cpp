@@ -389,6 +389,10 @@ bool VectorClock::_gossipOutComponent(OperationContext* opCtx,
                                       BSONObjBuilder* out,
                                       const LogicalTimeArray& time,
                                       Component component) const {
+    static char const* componentNames[] = {"ClusterTime", "ConfigTime", "TopologyTime"};
+    logd("XOXO: gossip OUT  component '{}':'{}'",
+         componentNames[static_cast<unsigned long>(component)],
+         time[component]);
     bool wasOutput = _gossipFormatters[component]->out(
         _service, opCtx, _permitRefreshDuringGossipOut(), out, time[component], component);
     return (component == Component::ClusterTime) ? wasOutput : false;
@@ -401,6 +405,10 @@ void VectorClock::_gossipInComponent(OperationContext* opCtx,
                                      Component component) {
     (*newTime)[component] =
         _gossipFormatters[component]->in(_service, opCtx, in, couldBeUnauthenticated, component);
+    static char const* componentNames[] = {"ClusterTime", "ConfigTime", "TopologyTime"};
+    logd("XOXO: gossip IN  component '{}':'{}'",
+         componentNames[static_cast<unsigned long>(component)],
+         (*newTime)[component]);
 }
 
 std::string VectorClock::_componentName(Component component) {
