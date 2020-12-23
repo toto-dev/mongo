@@ -9,10 +9,10 @@ load("jstests/replsets/rslib.js");
 const dbName = "test";
 const collName = "foo";
 const ns = dbName + "." + collName;
-const iterations = 10000;
+const iterations = 1;
 const slaveDelay = 1;
 
-const st = new ShardingTest({shards: 1, mongos: 1, config: 7});
+const st = new ShardingTest({shards: 1, mongos: 1, config: 1});
 
 jsTest.log("XOXO: Reconfig config replset  ------------------ ");
 /*
