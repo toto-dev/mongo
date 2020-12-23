@@ -38,6 +38,7 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/s/config/sharding_catalog_manager.h"
 #include "mongo/db/s/sharding_logging.h"
+#include "mongo/logv2/log_debug.h"
 #include "mongo/s/catalog/dist_lock_manager.h"
 #include "mongo/s/catalog/type_database.h"
 #include "mongo/s/catalog_cache.h"
@@ -168,7 +169,8 @@ public:
             _dropDatabaseFromShard(opCtx, shardId, dbname);
         }
 
-
+        logd("XOXO lastOp before drop daabase metadata: '{}'",
+             repl::ReplClientInfo::forClient(opCtx->getClient()).getLastOp());
         // Remove the database entry from the metadata.
         const Status status =
             catalogClient->removeConfigDocuments(opCtx,
@@ -177,6 +179,8 @@ public:
                                                  ShardingCatalogClient::kMajorityWriteConcern);
         uassertStatusOKWithContext(
             status, str::stream() << "Could not remove database '" << dbname << "' from metadata");
+        logd("XOXO lastOp after drop daabase metadata: '{}'",
+             repl::ReplClientInfo::forClient(opCtx->getClient()).getLastOp());
 
         // Send _flushDatabaseCacheUpdates to all shards
         IgnoreAPIParametersBlock ignoreApiParametersBlock{opCtx};
