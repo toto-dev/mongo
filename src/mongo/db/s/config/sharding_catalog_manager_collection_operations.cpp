@@ -90,7 +90,7 @@ MONGO_FAIL_POINT_DEFINE(hangRefineCollectionShardKeyBeforeUpdatingChunks);
 MONGO_FAIL_POINT_DEFINE(hangRefineCollectionShardKeyBeforeCommit);
 
 namespace {
-const ReadPreferenceSetting kConfigReadSelector(ReadPreference::SecondaryOnly, TagSet{});
+const ReadPreferenceSetting kConfigReadSelector(ReadPreference::Nearest, TagSet{});
 static constexpr int kMaxNumStaleShardVersionRetries = 10;
 const WriteConcernOptions kNoWaitWriteConcern(1, WriteConcernOptions::SyncMode::UNSET, Seconds(0));
 const char kWriteConcernField[] = "writeConcern";
