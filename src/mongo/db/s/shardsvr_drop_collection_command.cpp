@@ -36,6 +36,7 @@
 #include "mongo/db/commands.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/s/drop_collection_coordinator.h"
+#include "mongo/db/s/drop_collection_coordinator_service.h"
 #include "mongo/db/s/sharding_state.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/grid.h"
@@ -108,9 +109,14 @@ public:
             CurOp::get(opCtx)->raiseDbProfileLevel(
                 CollectionCatalog::get(opCtx)->getDatabaseProfileLevel(ns().db()));
 
-            auto dropCollectionCoordinator =
-                std::make_shared<DropCollectionCoordinator>(opCtx, ns());
-            dropCollectionCoordinator->run(opCtx).get();
+            auto coordinatorDoc = DropCollectionCoordinatorDocument(ns(), {}, {});
+
+            auto registry = repl::PrimaryOnlyServiceRegistry::get(opCtx->getServiceContext());
+            auto service =
+                registry->lookupServiceByName(DropCollectionCoordinatorService::kServiceName);
+            auto instance = DropCollectionCoordinatorService::Instance::getOrCreate(
+                opCtx, service, coordinatorDoc.toBSON());
+            instance->getCompletionFuture().get(opCtx);
         }
 
     private:

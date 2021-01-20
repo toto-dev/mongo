@@ -73,6 +73,7 @@ class UUID {
     friend class DonorStateMachine;
     friend class DatabaseVersion;
     friend class DbCheckOplogCollection;
+    friend class DropCollectionCoordinatorDocument;
     friend class EncryptionPlaceholder;
     friend class ExternalKeysCollectionDocument;
     friend class idl::import::One_UUID;

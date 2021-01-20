@@ -133,6 +133,7 @@
 #include "mongo/db/s/collection_sharding_state_factory_standalone.h"
 #include "mongo/db/s/config/sharding_catalog_manager.h"
 #include "mongo/db/s/config_server_op_observer.h"
+#include "mongo/db/s/drop_collection_coordinator_service.h"
 #include "mongo/db/s/migration_util.h"
 #include "mongo/db/s/op_observer_sharding_impl.h"
 #include "mongo/db/s/periodic_sharded_index_consistency_checker.h"
@@ -316,6 +317,7 @@ void registerPrimaryOnlyServices(ServiceContext* serviceContext) {
     } else if (serverGlobalParams.clusterRole == ClusterRole::ShardServer) {
         services.push_back(std::make_unique<ReshardingDonorService>(serviceContext));
         services.push_back(std::make_unique<ReshardingRecipientService>(serviceContext));
+        services.push_back(std::make_unique<DropCollectionCoordinatorService>(serviceContext));
     }
 
     for (auto& service : services) {
