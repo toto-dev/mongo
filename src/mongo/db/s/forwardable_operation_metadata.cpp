@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2020-present MongoDB, Inc.
+ *    Copyright (C) 2021-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,27 +27,31 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/platform/basic.h"
 
-#include "mongo/db/namespace_string.h"
-#include "mongo/db/operation_context.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
-#include "mongo/executor/task_executor.h"
-#include "mongo/util/future.h"
+
+#include "mongo/db/auth/authorization_session.h"
 
 namespace mongo {
 
-class ShardingDDLCoordinator {
-public:
-    ShardingDDLCoordinator(OperationContext* opCtx, const NamespaceString& nss);
-    SemiFuture<void> run(OperationContext* opCtx);
+ForwardableOperationMetadata::ForwardableOperationMetadata(OperationContext* opCtx) {
+    setComment(opCtx->getComment().Obj().getOwned());
+    auto authzSession = AuthorizationSession::get(opCtx->getClient());
+    setUsers(userNameIteratorToContainer<std::vector<UserName>>(
+        authzSession->getImpersonatedUserNames()));
+    setRoles(roleNameIteratorToContainer<std::vector<RoleName>>(
+        authzSession->getImpersonatedRoleNames()));
+}
 
-protected:
-    NamespaceString _nss;
-    ForwardableOperationMetadata _forwardableOpMetadata;
+void attachTo(OperationContext* opCtx) {
+    if (comment) {
+        opCtx->setComment(comment);
+    }
 
-private:
-    virtual SemiFuture<void> runImpl(std::shared_ptr<executor::TaskExecutor>) = 0;
-};
+    if (!users.empty() || !roles.empty()) {
+    AuthorizationSession::get(opCtx->getClient()->setImpersonatedUserData(users, roles);
+    }
+}
 
 }  // namespace mongo

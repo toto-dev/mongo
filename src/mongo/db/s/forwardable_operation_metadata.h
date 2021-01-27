@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2020-present MongoDB, Inc.
+ *    Copyright (C) 2021-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,25 +29,16 @@
 
 #pragma once
 
-#include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/db/s/forwardable_operation_metadata.h"
-#include "mongo/executor/task_executor.h"
-#include "mongo/util/future.h"
+#include "mongo/db/s/forwardable_operation_metadata_gen.h"
 
 namespace mongo {
 
-class ShardingDDLCoordinator {
+// TODO add comments
+class ForwardableOperationMetadata : public ForwardableOperationMetadataBase {
 public:
-    ShardingDDLCoordinator(OperationContext* opCtx, const NamespaceString& nss);
-    SemiFuture<void> run(OperationContext* opCtx);
-
-protected:
-    NamespaceString _nss;
-    ForwardableOperationMetadata _forwardableOpMetadata;
-
-private:
-    virtual SemiFuture<void> runImpl(std::shared_ptr<executor::TaskExecutor>) = 0;
+    ForwardableOperationMetadata(OperationContext* opCtx);
+    void attachTo(OperationContext* opCtx);
 };
 
 }  // namespace mongo
