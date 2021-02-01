@@ -31,11 +31,10 @@
 
 #include "mongo/db/s/drop_collection_coordinator.h"
 
+// TODO cleanup includes
 #include "mongo/db/api_parameters.h"
 #include "mongo/db/catalog_raii.h"
-#include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/s/database_sharding_state.h"
-#include "mongo/db/s/dist_lock_manager.h"
 #include "mongo/db/s/drop_collection_coordinator.h"
 #include "mongo/db/s/sharding_ddl_util.h"
 #include "mongo/db/s/sharding_state.h"
@@ -51,16 +50,29 @@
 
 namespace mongo {
 
-DropCollectionCoordinator::DropCollectionCoordinator(OperationContext* opCtx,
-                                                     const NamespaceString& nss)
-    : ShardingDDLCoordinator_NORESILIENT(opCtx, nss), _serviceContext(opCtx->getServiceContext()) {}
+DropCollectionCoordinator::DropCollectionCoordinator(const BSONObj& initialState)
+    : ShardingDDLCoordinator(initialState),
+      _doc(DropCollectionCoordinatorDocument::parse(
+          IDLParserErrorContext("DropCollectionCoordinatorDocument"), initialState)) {}
+
+DropCollectionCoordinator::~DropCollectionCoordinator() {
+    stdx::lock_guard<Latch> lg(_mutex);
+    invariant(_completionPromise.getFuture().isReady());
+}
 
 void DropCollectionCoordinator::_sendDropCollToParticipants(OperationContext* opCtx) {
     auto* const shardRegistry = Grid::get(opCtx)->shardRegistry();
 
+    std::vector<ShardId> participants;
+    if (_doc.getSharded()) {
+        participants = shardRegistry->getAllShardIds(opCtx);
+    } else {
+        participants = {ShardingState::get(opCtx)->shardId()};
+    }
+
     const ShardsvrDropCollectionParticipant dropCollectionParticipant(_nss);
 
-    for (const auto& shardId : _participants) {
+    for (const auto& shardId : participants) {
         const auto& shard = uassertStatusOK(shardRegistry->getShard(opCtx, shardId));
 
         const auto swDropResult = shard->runCommandWithFixedRetryAttempts(
@@ -88,20 +100,22 @@ void DropCollectionCoordinator::_stopMigrations(OperationContext* opCtx) {
         ShardingCatalogClient::kMajorityWriteConcern));
 }
 
-SemiFuture<void> DropCollectionCoordinator::runImpl(
-    std::shared_ptr<executor::TaskExecutor> executor) {
-    return ExecutorFuture<void>(executor, Status::OK())
+ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
+    std::shared_ptr<executor::ScopedTaskExecutor> executor,
+    const CancelationToken& token) noexcept {
+    return ExecutorFuture<void>(**executor)
         .then([this, anchor = shared_from_this()]() {
-            ThreadClient tc{"DropCollectionCoordinator", _serviceContext};
-            auto opCtxHolder = tc->makeOperationContext();
+            auto opCtxHolder = cc().makeOperationContext();
             auto* opCtx = opCtxHolder.get();
             _forwardableOpMetadata.setOn(opCtx);
 
+            /*
             auto distLockManager = DistLockManager::get(_serviceContext);
             const auto dbDistLock = uassertStatusOK(distLockManager->lock(
                 opCtx, _nss.db(), "DropCollection", DistLockManager::kDefaultLockTimeout));
             const auto collDistLock = uassertStatusOK(distLockManager->lock(
                 opCtx, _nss.ns(), "DropCollection", DistLockManager::kDefaultLockTimeout));
+            */
 
             _stopMigrations(opCtx);
 
@@ -110,23 +124,61 @@ SemiFuture<void> DropCollectionCoordinator::runImpl(
             try {
                 auto coll = catalogClient->getCollection(opCtx, _nss);
                 sharding_ddl_util::removeCollMetadataFromConfig(opCtx, coll);
-                _participants = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
+                _doc.setSharded(true);
             } catch (ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
                 // The collection is not sharded or doesn't exist, just remove tags
                 sharding_ddl_util::removeTagsMetadataFromConfig(opCtx, _nss);
-                _participants = {ShardingState::get(opCtx)->shardId()};
+                _doc.setSharded(false);
             }
 
             _sendDropCollToParticipants(opCtx);
         })
-        .onError([this, anchor = shared_from_this()](const Status& status) {
-            LOGV2_ERROR(5280901,
-                        "Error running drop collection",
-                        "namespace"_attr = _nss,
-                        "error"_attr = redact(status));
-            return status;
-        })
-        .semi();
+        .onCompletion([this, anchor = shared_from_this()](const Status& status) {
+            stdx::lock_guard<Latch> lk(_mutex);
+            if (_completionPromise.getFuture().isReady()) {
+                // interrupt() was called before we got here.
+                return;
+            }
+
+            if (!status.isOK()) {
+                LOGV2_ERROR(5280901,
+                            "Error running drop collection",
+                            "namespace"_attr = _nss,
+                            "error"_attr = redact(status));
+                // TODO _transitionToState(State::kError);
+                _completionPromise.setError(status);
+                return;
+            }
+
+            LOGV2_DEBUG(5390501, 1, "Collection dropped", "namespace"_attr = _nss);
+            // TODO _removeStateDocument();
+            _completionPromise.emplaceValue();
+        });
 }
+
+void DropCollectionCoordinator::interrupt(Status status) {
+    LOGV2_DEBUG(5390502,
+                1,
+                "Drop collection coordinator received an interrupt",
+                "namespace"_attr = _nss,
+                "reason"_attr = redact(status));
+
+    // Resolve any unresolved promises to avoid hanging.
+    stdx::lock_guard<Latch> lg(_mutex);
+    if (!_completionPromise.getFuture().isReady()) {
+        _completionPromise.setError(status);
+    }
+}
+
+boost::optional<BSONObj> DropCollectionCoordinator::reportForCurrentOp(
+    MongoProcessInterface::CurrentOpConnectionsMode connMode,
+    MongoProcessInterface::CurrentOpSessionsMode sessionMode) noexcept {
+    // TODO report correct info here
+    return boost::none;
+}
+
+Status DropCollectionCoordinator::checkIfOptionsConflict(const BSONObj& doc) const {
+    return Status::OK();
+};
 
 }  // namespace mongo

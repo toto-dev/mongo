@@ -35,6 +35,7 @@
 
 #include "mongo/db/s/database_sharding_state.h"
 #include "mongo/db/s/operation_sharding_state.h"
+#include "mongo/db/s/sharding_ddl_operation_gen.h"
 #include "mongo/db/s/sharding_state.h"
 #include "mongo/s/grid.h"
 

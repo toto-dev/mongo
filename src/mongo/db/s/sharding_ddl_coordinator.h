@@ -31,7 +31,11 @@
 
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/repl/primary_only_service.h"
+#include "mongo/db/s/dist_lock_manager.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
+#include "mongo/db/s/sharding_ddl_operation_gen.h"
+#include "mongo/db/s/sharding_ddl_service.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/util/future.h"
 
@@ -48,6 +52,69 @@ protected:
 
 private:
     virtual SemiFuture<void> runImpl(std::shared_ptr<executor::TaskExecutor>) = 0;
+};
+
+class ShardingDDLCoordinator
+    : public repl::PrimaryOnlyService::TypedInstance<ShardingDDLCoordinator> {
+public:
+    explicit ShardingDDLCoordinator(const BSONObj& ddlOpDoc) {
+        const auto idElem = ddlOpDoc["_id"];
+        uassert(6092801,
+                str::stream()
+                    << "Missing _id element constructing a new instance of ShardingDDLCoordinator",
+                !idElem.eoo());
+        auto op = ShardingDdlOperationId::parse(IDLParserErrorContext("ShardingDdlOperationId"),
+                                                idElem.Obj().getOwned());
+        _nss = op.getNss();
+    };
+
+    virtual ~ShardingDDLCoordinator() = default;
+
+    void failConstruction(Status errorStatus) {
+        _constructionCompletionPromise.setError(errorStatus);
+    };
+
+    void completeConstruction(ForwardableOperationMetadata&& frwOpMetadata,
+                              std::stack<DistLockManager::ScopedDistLock>&& scopedLocks) {
+        _forwardableOpMetadata = std::move(frwOpMetadata);
+        _scopedLocks = std::move(scopedLocks);
+        _constructionCompletionPromise.emplaceValue();
+    };
+
+    SemiFuture<void> run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                         const CancelationToken& token) noexcept override {
+        return _constructionCompletionPromise.getFuture()
+            .thenRunOn(**executor)
+            .then([this, executor, token, anchor = shared_from_this()] {
+                return _runImpl(executor, token);
+            })
+            .onCompletion([this, anchor = shared_from_this()](const Status& status) {
+                auto opCtxHolder = cc().makeOperationContext();
+                auto* opCtx = opCtxHolder.get();
+
+                while (!_scopedLocks.empty()) {
+                    _scopedLocks.top().assignNewOpCtx(opCtx);
+                    _scopedLocks.pop();
+                }
+                return status;
+            })
+            .semi();
+    };
+
+    virtual Status checkIfOptionsConflict(const BSONObj& stateDoc) const = 0;
+
+protected:
+    NamespaceString _nss;
+    // It is safe to access the following variables only when the > _constructionCompletionPromise
+    // completes
+    ForwardableOperationMetadata _forwardableOpMetadata;
+    std::stack<DistLockManager::ScopedDistLock> _scopedLocks;
+
+private:
+    virtual ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                                          const CancelationToken& token) = 0;
+
+    SharedPromise<void> _constructionCompletionPromise;
 };
 
 }  // namespace mongo

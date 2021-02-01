@@ -101,9 +101,15 @@ public:
             CurOp::get(opCtx)->raiseDbProfileLevel(
                 CollectionCatalog::get(opCtx)->getDatabaseProfileLevel(ns().db()));
 
-            auto dropCollectionCoordinator =
-                std::make_shared<DropCollectionCoordinator>(opCtx, ns());
-            dropCollectionCoordinator->run(opCtx).get();
+            auto coordinatorDoc = DropCollectionCoordinatorDocument(
+                {ns(), DDLOperationTypeEnum::kDropCollectionCoordinator});
+
+            // TODO expose a spcialized getOrCreate on the coordinator to hide the retrival of the
+            // service.
+            auto service = ShardingDDLOperationService::getService(opCtx);
+            auto dropCollCoordinator = checked_pointer_cast<DropCollectionCoordinator>(
+                service->getOrCreateInstance(opCtx, coordinatorDoc.toBSON()));
+            dropCollCoordinator->getCompletionFuture().get(opCtx);
         }
 
     private:

@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2020-present MongoDB, Inc.
+ *    Copyright (C) 2021-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,47 +29,41 @@
 
 #pragma once
 
-#include "mongo/db/s/drop_collection_coordinator_document_gen.h"
-#include "mongo/db/s/sharding_ddl_coordinator.h"
-#include "mongo/s/shard_id.h"
+#include "mongo/db/namespace_string.h"
+#include "mongo/db/repl/primary_only_service.h"
 
 namespace mongo {
 
-class DropCollectionCoordinator final : public ShardingDDLCoordinator {
+class ShardingDDLOperationService final : public repl::PrimaryOnlyService {
 public:
-    DropCollectionCoordinator(const BSONObj& initialState);
-    ~DropCollectionCoordinator() override;
+    static constexpr StringData kServiceName = "ShardingDDLOperation"_sd;
+    static const NamespaceString kDDLOperationDocumentsNamespace;
 
-    Status checkIfOptionsConflict(const BSONObj& doc) const;
+    explicit ShardingDDLOperationService(ServiceContext* serviceContext)
+        : PrimaryOnlyService(serviceContext) {}
 
-    void interrupt(Status status) override;
+    ~ShardingDDLOperationService() = default;
 
-    boost::optional<BSONObj> reportForCurrentOp(
-        MongoProcessInterface::CurrentOpConnectionsMode connMode,
-        MongoProcessInterface::CurrentOpSessionsMode sessionMode) noexcept override;
+    static ShardingDDLOperationService* getService(OperationContext* opCtx);
 
-    /**
-     * Returns a Future that will be resolved when all work associated with this Instance has
-     * completed running.
-     */
-    SharedSemiFuture<void> getCompletionFuture() const {
-        return _completionPromise.getFuture();
+    StringData getServiceName() const override {
+        return kServiceName;
     }
 
+    NamespaceString getStateDocumentsNS() const override {
+        return kDDLOperationDocumentsNamespace;
+    }
+
+    ThreadPool::Limits getThreadPoolLimits() const override {
+        return ThreadPool::Limits();
+    }
+
+    std::shared_ptr<Instance> constructInstance(BSONObj initialState) const override;
+
+    std::shared_ptr<Instance> getOrCreateInstance(OperationContext* opCtx, BSONObj initialState);
 
 private:
-    ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
-                                  const CancelationToken& token) noexcept override;
-
-    void _stopMigrations(OperationContext* opCtx);
-    void _sendDropCollToParticipants(OperationContext* opCtx);
-
-    std::vector<ShardId> _participants;
-
-    DropCollectionCoordinatorDocument _doc;
-
-    Mutex _mutex = MONGO_MAKE_LATCH("DropCollectionCoordinator::_mutex");
-    SharedPromise<void> _completionPromise;
+    Mutex _mutex = MONGO_MAKE_LATCH("ShardingDDLOperationService::_mutex");
 };
 
 }  // namespace mongo

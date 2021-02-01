@@ -46,6 +46,7 @@ namespace mongo {
  */
 class ForwardableOperationMetadata : public ForwardableOperationMetadataBase {
 public:
+    ForwardableOperationMetadata() = default;
     ForwardableOperationMetadata(OperationContext* opCtx);
     void setOn(OperationContext* opCtx);
 };
