@@ -164,6 +164,7 @@ ShardingDDLOperationService::getOrCreateInstance(OperationContext* opCtx, BSONOb
 
         op->completeConstruction(std::move(frwOpMetadata), std::move(scopedLocks));
     } catch (const DBException& ex) {
+        // TODO add error log here to inform about the failed creation of the new coordinator
         op->failConstruction(
             ex.toStatus("Failed to complete construction of sharding DDL operation"));
         throw;
