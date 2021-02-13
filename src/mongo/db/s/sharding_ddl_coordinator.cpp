@@ -41,16 +41,8 @@
 
 namespace mongo {
 
-ShardingDDLCoordinator::ShardingDDLCoordinator(const BSONObj& coorDoc) {
-    const auto idElem = coorDoc["_id"];
-    uassert(6092801,
-            str::stream()
-                << "Missing _id element constructing a new instance of ShardingDDLCoordinator",
-            !idElem.eoo());
-    auto op = ShardingDDLCoordinatorId::parse(IDLParserErrorContext("ShardingDDLCoordinatorId"),
-                                              idElem.Obj().getOwned());
-    _nss = op.getNss();
-};
+ShardingDDLCoordinator::ShardingDDLCoordinator(const BSONObj& coorDoc)
+    : _id(extractShardingDDLCoordinatorId(coorDoc)){};
 
 SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                              const CancelationToken& token) noexcept {

@@ -31,8 +31,14 @@
 
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/repl/primary_only_service.h"
+#include "mongo/db/s/sharding_ddl_coordinator_gen.h"
 
 namespace mongo {
+
+/*
+ * Extracts the sharding DDL Coordinator ID from a coordinator document
+ */
+ShardingDDLCoordinatorId extractShardingDDLCoordinatorId(const BSONObj& coorDoc);
 
 class ShardingDDLCoordinatorService final : public repl::PrimaryOnlyService {
 public:

@@ -70,7 +70,7 @@ void DropCollectionCoordinator::_sendDropCollToParticipants(OperationContext* op
         participants = {ShardingState::get(opCtx)->shardId()};
     }
 
-    const ShardsvrDropCollectionParticipant dropCollectionParticipant(_nss);
+    const ShardsvrDropCollectionParticipant dropCollectionParticipant(nss());
 
     for (const auto& shardId : participants) {
         const auto& shard = uassertStatusOK(shardRegistry->getShard(opCtx, shardId));
@@ -78,13 +78,13 @@ void DropCollectionCoordinator::_sendDropCollToParticipants(OperationContext* op
         const auto swDropResult = shard->runCommandWithFixedRetryAttempts(
             opCtx,
             ReadPreferenceSetting{ReadPreference::PrimaryOnly},
-            _nss.db().toString(),
+            nss().db().toString(),
             CommandHelpers::appendMajorityWriteConcern(dropCollectionParticipant.toBSON({})),
             Shard::RetryPolicy::kIdempotent);
 
         uassertStatusOKWithContext(
             Shard::CommandResponse::getEffectiveStatus(std::move(swDropResult)),
-            str::stream() << "Error dropping collection " << _nss.toString()
+            str::stream() << "Error dropping collection " << nss().toString()
                           << " on participant shard " << shardId);
     }
 }
@@ -94,7 +94,7 @@ void DropCollectionCoordinator::_stopMigrations(OperationContext* opCtx) {
     uassertStatusOK(Grid::get(opCtx)->catalogClient()->updateConfigDocument(
         opCtx,
         CollectionType::ConfigNS,
-        BSON(CollectionType::kNssFieldName << _nss.ns()),
+        BSON(CollectionType::kNssFieldName << nss().ns()),
         BSON("$set" << BSON(CollectionType::kAllowMigrationsFieldName << false)),
         false /* upsert */,
         ShardingCatalogClient::kMajorityWriteConcern));
@@ -112,9 +112,9 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
             /*
             auto distLockManager = DistLockManager::get(_serviceContext);
             const auto dbDistLock = uassertStatusOK(distLockManager->lock(
-                opCtx, _nss.db(), "DropCollection", DistLockManager::kDefaultLockTimeout));
+                opCtx, nss().db(), "DropCollection", DistLockManager::kDefaultLockTimeout));
             const auto collDistLock = uassertStatusOK(distLockManager->lock(
-                opCtx, _nss.ns(), "DropCollection", DistLockManager::kDefaultLockTimeout));
+                opCtx, nss().ns(), "DropCollection", DistLockManager::kDefaultLockTimeout));
             */
 
             _stopMigrations(opCtx);
@@ -122,12 +122,12 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
             const auto catalogClient = Grid::get(opCtx)->catalogClient();
 
             try {
-                auto coll = catalogClient->getCollection(opCtx, _nss);
+                auto coll = catalogClient->getCollection(opCtx, nss());
                 sharding_ddl_util::removeCollMetadataFromConfig(opCtx, coll);
                 _doc.setSharded(true);
             } catch (ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
                 // The collection is not sharded or doesn't exist, just remove tags
-                sharding_ddl_util::removeTagsMetadataFromConfig(opCtx, _nss);
+                sharding_ddl_util::removeTagsMetadataFromConfig(opCtx, nss());
                 _doc.setSharded(false);
             }
 
@@ -143,14 +143,14 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
             if (!status.isOK()) {
                 LOGV2_ERROR(5280901,
                             "Error running drop collection",
-                            "namespace"_attr = _nss,
+                            "namespace"_attr = nss(),
                             "error"_attr = redact(status));
                 // TODO _transitionToState(State::kError);
                 _completionPromise.setError(status);
                 return;
             }
 
-            LOGV2_DEBUG(5390501, 1, "Collection dropped", "namespace"_attr = _nss);
+            LOGV2_DEBUG(5390501, 1, "Collection dropped", "namespace"_attr = nss());
             // TODO _removeStateDocument();
             _completionPromise.emplaceValue();
         });
@@ -160,7 +160,7 @@ void DropCollectionCoordinator::interrupt(Status status) {
     LOGV2_DEBUG(5390502,
                 1,
                 "Drop collection coordinator received an interrupt",
-                "namespace"_attr = _nss,
+                "namespace"_attr = nss(),
                 "reason"_attr = redact(status));
 
     // Resolve any unresolved promises to avoid hanging.

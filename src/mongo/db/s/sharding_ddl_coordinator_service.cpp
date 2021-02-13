@@ -44,20 +44,13 @@
 
 namespace mongo {
 
-namespace {
-
-/*
- * Extracts the sharding ddl operation id from a general operation document
- */
-ShardingDDLCoordinatorId extractShardingDDlOperationId(const BSONObj& ddlOpDocument) {
-    const auto idElem = ddlOpDocument["_id"];
+ShardingDDLCoordinatorId extractShardingDDLCoordinatorId(const BSONObj& coorDoc) {
+    const auto idElem = coorDoc["_id"];
     uassert(
         6092801, str::stream() << "Missing _id element in DDL operation document", !idElem.eoo());
     return ShardingDDLCoordinatorId::parse(IDLParserErrorContext("ShardingDDLCoordinatorId"),
                                            idElem.Obj().getOwned());
 }
-
-}  // namespace
 
 const NamespaceString ShardingDDLCoordinatorService::kDDLCoordinatorDocumentsNamespace =
     NamespaceString(NamespaceString::kConfigDb, "sharding.ddl.coordinators");

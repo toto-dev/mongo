@@ -64,8 +64,13 @@ public:
     SemiFuture<void> run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                          const CancelationToken& token) noexcept override;
 
+    const NamespaceString& nss() const {
+        return _id.getNss();
+    };
+
 protected:
-    NamespaceString _nss;
+    ShardingDDLCoordinatorId _id;
+
     // It is safe to access the following variables only
     // when the _constructionCompletionPromise completes.
     ForwardableOperationMetadata _forwardableOpMetadata;
