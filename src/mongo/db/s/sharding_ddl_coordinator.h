@@ -57,18 +57,11 @@ private:
 class ShardingDDLCoordinator
     : public repl::PrimaryOnlyService::TypedInstance<ShardingDDLCoordinator> {
 public:
-    explicit ShardingDDLCoordinator(const BSONObj& ddlOpDoc) {
-        const auto idElem = ddlOpDoc["_id"];
-        uassert(6092801,
-                str::stream()
-                    << "Missing _id element constructing a new instance of ShardingDDLCoordinator",
-                !idElem.eoo());
-        auto op = ShardingDDLCoordinatorId::parse(IDLParserErrorContext("ShardingDDLCoordinatorId"),
-                                                  idElem.Obj().getOwned());
-        _nss = op.getNss();
-    };
+    explicit ShardingDDLCoordinator(const BSONObj& coorDoc);
 
     virtual ~ShardingDDLCoordinator() = default;
+
+    virtual Status checkIfOptionsConflict(const BSONObj& stateDoc) const = 0;
 
     void failConstruction(Status errorStatus) {
         _constructionCompletionPromise.setError(errorStatus);
@@ -82,37 +75,18 @@ public:
     };
 
     SemiFuture<void> run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
-                         const CancelationToken& token) noexcept override {
-        return _constructionCompletionPromise.getFuture()
-            .thenRunOn(**executor)
-            .then([this, executor, token, anchor = shared_from_this()] {
-                return _runImpl(executor, token);
-            })
-            .onCompletion([this, anchor = shared_from_this()](const Status& status) {
-                auto opCtxHolder = cc().makeOperationContext();
-                auto* opCtx = opCtxHolder.get();
-
-                while (!_scopedLocks.empty()) {
-                    _scopedLocks.top().assignNewOpCtx(opCtx);
-                    _scopedLocks.pop();
-                }
-                return status;
-            })
-            .semi();
-    };
-
-    virtual Status checkIfOptionsConflict(const BSONObj& stateDoc) const = 0;
+                         const CancelationToken& token) noexcept override;
 
 protected:
     NamespaceString _nss;
-    // It is safe to access the following variables only when the > _constructionCompletionPromise
-    // completes
+    // It is safe to access the following variables only
+    // when the _constructionCompletionPromise completes.
     ForwardableOperationMetadata _forwardableOpMetadata;
     std::stack<DistLockManager::ScopedDistLock> _scopedLocks;
 
 private:
     virtual ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
-                                          const CancelationToken& token) = 0;
+                                          const CancelationToken& token) noexcept = 0;
 
     SharedPromise<void> _constructionCompletionPromise;
 };

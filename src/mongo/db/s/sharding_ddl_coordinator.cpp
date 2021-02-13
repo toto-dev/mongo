@@ -72,4 +72,36 @@ SemiFuture<void> ShardingDDLCoordinator_NORESILIENT::run(OperationContext* opCtx
     return runImpl(Grid::get(opCtx)->getExecutorPool()->getFixedExecutor());
 }
 
+ShardingDDLCoordinator::ShardingDDLCoordinator(const BSONObj& coorDoc) {
+    const auto idElem = coorDoc["_id"];
+    uassert(6092801,
+            str::stream()
+                << "Missing _id element constructing a new instance of ShardingDDLCoordinator",
+            !idElem.eoo());
+    auto op = ShardingDDLCoordinatorId::parse(IDLParserErrorContext("ShardingDDLCoordinatorId"),
+                                              idElem.Obj().getOwned());
+    _nss = op.getNss();
+};
+
+SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                                             const CancelationToken& token) noexcept {
+    return _constructionCompletionPromise.getFuture()
+        .thenRunOn(**executor)
+        .then([this, executor, token, anchor = shared_from_this()] {
+            return _runImpl(executor, token);
+        })
+        .onCompletion([this, anchor = shared_from_this()](const Status& status) {
+            auto opCtxHolder = cc().makeOperationContext();
+            auto* opCtx = opCtxHolder.get();
+
+            while (!_scopedLocks.empty()) {
+                _scopedLocks.top().assignNewOpCtx(opCtx);
+                _scopedLocks.pop();
+            }
+            return status;
+        })
+        .semi();
+};
+
+
 }  // namespace mongo
