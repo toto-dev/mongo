@@ -38,7 +38,7 @@
 #include "mongo/db/s/drop_collection_coordinator.h"
 #include "mongo/db/s/operation_sharding_state.h"
 #include "mongo/db/s/sharding_ddl_coordinator.h"
-#include "mongo/db/s/sharding_ddl_operation_gen.h"
+#include "mongo/db/s/sharding_ddl_coordinator_gen.h"
 #include "mongo/db/s/sharding_state.h"
 #include "mongo/logv2/log.h"
 
@@ -49,18 +49,18 @@ namespace {
 /*
  * Extracts the sharding ddl operation id from a general operation document
  */
-ShardingDdlOperationId extractShardingDDlOperationId(const BSONObj& ddlOpDocument) {
+ShardingDDLCoordinatorId extractShardingDDlOperationId(const BSONObj& ddlOpDocument) {
     const auto idElem = ddlOpDocument["_id"];
     uassert(
         6092801, str::stream() << "Missing _id element in DDL operation document", !idElem.eoo());
-    return ShardingDdlOperationId::parse(IDLParserErrorContext("ShardingDdlOperationId"),
-                                         idElem.Obj().getOwned());
+    return ShardingDDLCoordinatorId::parse(IDLParserErrorContext("ShardingDDLCoordinatorId"),
+                                           idElem.Obj().getOwned());
 }
 
 }  // namespace
 
-const NamespaceString ShardingDDLCoordinatorService::kDDLOperationDocumentsNamespace =
-    NamespaceString(NamespaceString::kConfigDb, "sharding.ddl.operations");
+const NamespaceString ShardingDDLCoordinatorService::kDDLCoordinatorDocumentsNamespace =
+    NamespaceString(NamespaceString::kConfigDb, "sharding.ddl.coordinators");
 
 ShardingDDLCoordinatorService* ShardingDDLCoordinatorService::getService(OperationContext* opCtx) {
     auto registry = repl::PrimaryOnlyServiceRegistry::get(opCtx->getServiceContext());
@@ -73,20 +73,20 @@ ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) const {
     const auto op = extractShardingDDlOperationId(initialState);
 
     switch (op.getOperationType()) {
-        case DDLOperationTypeEnum::kDropCollectionCoordinator:
+        case DDLCoordinatorTypeEnum::kDropCollectionCoordinator:
             return std::make_shared<DropCollectionCoordinator>(std::move(initialState));
             break;
         default:
             uasserted(ErrorCodes::BadValue,
                       str::stream() << "Encountered unknown Sharding DDL operation type: "
-                                    << DDLOperationType_serializer(op.getOperationType()));
+                                    << DDLCoordinatorType_serializer(op.getOperationType()));
     }
 }
 
 std::shared_ptr<ShardingDDLCoordinatorService::Instance>
 ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx, BSONObj initialState) {
     const auto opId = extractShardingDDlOperationId(initialState);
-    const auto opName = DDLOperationType_serializer(opId.getOperationType());
+    const auto opName = DDLCoordinatorType_serializer(opId.getOperationType());
     const auto& nss = opId.getNss();
     const auto isConfigDB = nss.isConfigDB();
 

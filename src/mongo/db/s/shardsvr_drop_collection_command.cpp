@@ -102,7 +102,7 @@ public:
                 CollectionCatalog::get(opCtx)->getDatabaseProfileLevel(ns().db()));
 
             auto coordinatorDoc = DropCollectionCoordinatorDocument(
-                {ns(), DDLOperationTypeEnum::kDropCollectionCoordinator});
+                {ns(), DDLCoordinatorTypeEnum::kDropCollectionCoordinator});
 
             // TODO expose a spcialized getOrCreate on the coordinator to hide the retrival of the
             // service.

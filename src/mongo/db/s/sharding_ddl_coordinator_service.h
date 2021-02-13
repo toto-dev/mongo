@@ -37,7 +37,7 @@ namespace mongo {
 class ShardingDDLCoordinatorService final : public repl::PrimaryOnlyService {
 public:
     static constexpr StringData kServiceName = "ShardingDDLCoordinator"_sd;
-    static const NamespaceString kDDLOperationDocumentsNamespace;
+    static const NamespaceString kDDLCoordinatorDocumentsNamespace;
 
     explicit ShardingDDLCoordinatorService(ServiceContext* serviceContext)
         : PrimaryOnlyService(serviceContext) {}
@@ -51,7 +51,7 @@ public:
     }
 
     NamespaceString getStateDocumentsNS() const override {
-        return kDDLOperationDocumentsNamespace;
+        return kDDLCoordinatorDocumentsNamespace;
     }
 
     ThreadPool::Limits getThreadPoolLimits() const override {

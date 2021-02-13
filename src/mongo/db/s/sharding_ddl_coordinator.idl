@@ -35,7 +35,7 @@ imports:
     - "mongo/idl/basic_types.idl"
 
 enums:
-    DDLOperationType:
+    DDLCoordinatorType:
         description: "Type of the sharding DDL Operation."
         type: string
         values:
@@ -43,15 +43,15 @@ enums:
             kDropCollectionCoordinator: "dropCollectionCoordinator"
 
 structs:
-    ShardingDdlOperationId:
-        description: "Identifier for a specific sharding DDL operation."
+    ShardingDDLCoordinatorId:
+        description: "Identifier for a specific sharding DDL Coordinator."
         generate_comparison_operators: false
         strict: false
         fields:
             namespace:
-                description: "The namespace of the collection to be dropped."
+                description: "The target namespace of the DDL operation."
                 cpp_name: nss
                 type: namespacestring
             operationType:
-                description: "Type of the sharding DDL Operation."
-                type: DDLOperationType
+                description: "Type of the sharding DDL coordinator."
+                type: DDLCoordinatorType

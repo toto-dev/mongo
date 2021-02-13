@@ -34,7 +34,7 @@ global:
 
 imports:
     - "mongo/idl/basic_types.idl"
-    - "mongo/db/s/sharding_ddl_operation.idl"
+    - "mongo/db/s/sharding_ddl_coordinator.idl"
 
 enums:
     DropCollectionCoordinatorState:
@@ -56,7 +56,7 @@ structs:
         strict: true
         fields:
             _id:
-                type: ShardingDdlOperationId
+                type: ShardingDDLCoordinatorId
                 cpp_name: id
             state:
                 type: DropCollectionCoordinatorState
