@@ -70,7 +70,7 @@ ShardingDDLCoordinatorService* ShardingDDLCoordinatorService::getService(Operati
 
 std::shared_ptr<ShardingDDLCoordinatorService::Instance>
 ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) const {
-    const auto op = extractShardingDDlOperationId(initialState);
+    const auto op = extractShardingDDLCoordinatorId(initialState);
 
     switch (op.getOperationType()) {
         case DDLCoordinatorTypeEnum::kDropCollectionCoordinator:
@@ -85,7 +85,7 @@ ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) const {
 
 std::shared_ptr<ShardingDDLCoordinatorService::Instance>
 ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx, BSONObj initialState) {
-    const auto opId = extractShardingDDlOperationId(initialState);
+    const auto opId = extractShardingDDLCoordinatorId(initialState);
     const auto opName = DDLCoordinatorType_serializer(opId.getOperationType());
     const auto& nss = opId.getNss();
     const auto isConfigDB = nss.isConfigDB();
