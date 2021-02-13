@@ -31,7 +31,7 @@
 
 #include "mongo/platform/basic.h"
 
-#include "mongo/db/s/sharding_ddl_service.h"
+#include "mongo/db/s/sharding_ddl_coordinator_service.h"
 
 #include "mongo/base/checked_cast.h"
 #include "mongo/db/s/database_sharding_state.h"
@@ -59,17 +59,17 @@ ShardingDdlOperationId extractShardingDDlOperationId(const BSONObj& ddlOpDocumen
 
 }  // namespace
 
-const NamespaceString ShardingDDLOperationService::kDDLOperationDocumentsNamespace =
+const NamespaceString ShardingDDLCoordinatorService::kDDLOperationDocumentsNamespace =
     NamespaceString(NamespaceString::kConfigDb, "sharding.ddl.operations");
 
-ShardingDDLOperationService* ShardingDDLOperationService::getService(OperationContext* opCtx) {
+ShardingDDLCoordinatorService* ShardingDDLCoordinatorService::getService(OperationContext* opCtx) {
     auto registry = repl::PrimaryOnlyServiceRegistry::get(opCtx->getServiceContext());
     auto service = registry->lookupServiceByName(kServiceName);
-    return checked_cast<ShardingDDLOperationService*>(std::move(service));
+    return checked_cast<ShardingDDLCoordinatorService*>(std::move(service));
 }
 
-std::shared_ptr<ShardingDDLOperationService::Instance>
-ShardingDDLOperationService::constructInstance(BSONObj initialState) const {
+std::shared_ptr<ShardingDDLCoordinatorService::Instance>
+ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) const {
     const auto op = extractShardingDDlOperationId(initialState);
 
     switch (op.getOperationType()) {
@@ -83,8 +83,8 @@ ShardingDDLOperationService::constructInstance(BSONObj initialState) const {
     }
 }
 
-std::shared_ptr<ShardingDDLOperationService::Instance>
-ShardingDDLOperationService::getOrCreateInstance(OperationContext* opCtx, BSONObj initialState) {
+std::shared_ptr<ShardingDDLCoordinatorService::Instance>
+ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx, BSONObj initialState) {
     const auto opId = extractShardingDDlOperationId(initialState);
     const auto opName = DDLOperationType_serializer(opId.getOperationType());
     const auto& nss = opId.getNss();

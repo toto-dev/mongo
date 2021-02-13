@@ -34,8 +34,8 @@
 #include "mongo/db/repl/primary_only_service.h"
 #include "mongo/db/s/dist_lock_manager.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
+#include "mongo/db/s/sharding_ddl_coordinator_service.h"
 #include "mongo/db/s/sharding_ddl_operation_gen.h"
-#include "mongo/db/s/sharding_ddl_service.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/util/future.h"
 

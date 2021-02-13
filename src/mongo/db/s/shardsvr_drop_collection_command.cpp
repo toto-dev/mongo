@@ -106,7 +106,7 @@ public:
 
             // TODO expose a spcialized getOrCreate on the coordinator to hide the retrival of the
             // service.
-            auto service = ShardingDDLOperationService::getService(opCtx);
+            auto service = ShardingDDLCoordinatorService::getService(opCtx);
             auto dropCollCoordinator = checked_pointer_cast<DropCollectionCoordinator>(
                 service->getOrCreateInstance(opCtx, coordinatorDoc.toBSON()));
             dropCollCoordinator->getCompletionFuture().get(opCtx);

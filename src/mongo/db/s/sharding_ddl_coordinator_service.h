@@ -34,17 +34,17 @@
 
 namespace mongo {
 
-class ShardingDDLOperationService final : public repl::PrimaryOnlyService {
+class ShardingDDLCoordinatorService final : public repl::PrimaryOnlyService {
 public:
-    static constexpr StringData kServiceName = "ShardingDDLOperation"_sd;
+    static constexpr StringData kServiceName = "ShardingDDLCoordinator"_sd;
     static const NamespaceString kDDLOperationDocumentsNamespace;
 
-    explicit ShardingDDLOperationService(ServiceContext* serviceContext)
+    explicit ShardingDDLCoordinatorService(ServiceContext* serviceContext)
         : PrimaryOnlyService(serviceContext) {}
 
-    ~ShardingDDLOperationService() = default;
+    ~ShardingDDLCoordinatorService() = default;
 
-    static ShardingDDLOperationService* getService(OperationContext* opCtx);
+    static ShardingDDLCoordinatorService* getService(OperationContext* opCtx);
 
     StringData getServiceName() const override {
         return kServiceName;
@@ -63,7 +63,7 @@ public:
     std::shared_ptr<Instance> getOrCreateInstance(OperationContext* opCtx, BSONObj initialState);
 
 private:
-    Mutex _mutex = MONGO_MAKE_LATCH("ShardingDDLOperationService::_mutex");
+    Mutex _mutex = MONGO_MAKE_LATCH("ShardingDDLCoordinatorService::_mutex");
 };
 
 }  // namespace mongo
