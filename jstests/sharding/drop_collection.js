@@ -133,7 +133,7 @@ function assertCollectionDropped(ns, uuid = null) {
     assertCollectionDropped(coll.getFullName(), uuid);
 
     // Call drop again to verify that the command is idempotent.
-    assert.commandWorked(db.runCommand({drop: 'user'}));
+    assert.commandWorked(db.runCommand({drop: coll.getName()}));
 }
 
 // Drop a sharded collection with zones
