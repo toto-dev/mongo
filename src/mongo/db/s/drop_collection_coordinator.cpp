@@ -87,6 +87,10 @@ Status DropCollectionCoordinator::checkIfOptionsConflict(const BSONObj& doc) con
 };
 
 void DropCollectionCoordinator::_insertStateDocument(StateDoc&& doc) {
+    auto coorMetadata = doc.getShardingDDLCoordinatorMetadata();
+    coorMetadata.setRecoveredFromDisk(true);
+    doc.setShardingDDLCoordinatorMetadata(coorMetadata);
+
     auto opCtx = cc().makeOperationContext();
     PersistentTaskStore<StateDoc> store(
         ShardingDDLCoordinatorService::kDDLCoordinatorDocumentsNamespace);
