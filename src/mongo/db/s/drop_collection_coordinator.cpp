@@ -208,6 +208,11 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                 const auto collIsSharded = bool(_doc.getCollInfo());
 
 
+                LOGV2_DEBUG(5390504,
+                            2,
+                            "Dropping collection",
+                            "namespace"_attr = nss(),
+                            "sharded"_attr = collIsSharded);
                 if (collIsSharded) {
                     invariant(_doc.getCollInfo());
                     const auto& coll = _doc.getCollInfo().get();
@@ -241,7 +246,7 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                 return;
             }
 
-            LOGV2_DEBUG(5390501, 1, "Collection dropped", "namespace"_attr = nss());
+            LOGV2_DEBUG(5390503, 1, "Collection dropped", "namespace"_attr = nss());
             // TODO _removeStateDocument();
             _completionPromise.emplaceValue();
         });
