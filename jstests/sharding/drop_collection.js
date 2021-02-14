@@ -90,6 +90,22 @@ jsTest.log("Drop unsharded collection also remove tags.");
     assert.commandWorked(db.runCommand({drop: coll.getName()}));
     assertCollectionDropped(coll.getFullName());
 }
+jsTest.log("Drop sharded collection repeated.");
+{
+    const db = getNewDb();
+    const coll = db['unshardedColl0'];
+    // Create the database
+    assert.commandWorked(st.s.adminCommand({enableSharding: db.getName()}));
+    for (var i = 0; i < 5; i++) {
+        // Create the collection
+        assert.commandWorked(st.s.adminCommand({shardCollection: coll.getFullName(), key: {x: 1}}));
+        assert.commandWorked(coll.insert({x: 123}));
+        assert.eq(1, coll.countDocuments({x: 123}));
+        // Drop the collection
+        assert.commandWorked(db.runCommand({drop: coll.getName()}));
+        assertCollectionDropped(coll.getFullName());
+    }
+}
 
 jsTest.log("Drop unexistent collections also remove tags.");
 {
