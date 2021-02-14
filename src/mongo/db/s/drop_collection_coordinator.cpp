@@ -59,6 +59,7 @@ DropCollectionCoordinator::DropCollectionCoordinator(const BSONObj& initialState
 DropCollectionCoordinator::~DropCollectionCoordinator() {
     stdx::lock_guard<Latch> lg(_mutex);
     invariant(_completionPromise.getFuture().isReady());
+    logd("XOXO ~DropCollectionCoordinator finished");
 }
 
 void DropCollectionCoordinator::interrupt(Status status) {

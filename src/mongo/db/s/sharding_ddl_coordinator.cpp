@@ -47,6 +47,7 @@ ShardingDDLCoordinator::ShardingDDLCoordinator(const BSONObj& coorDoc)
 
 ShardingDDLCoordinator::~ShardingDDLCoordinator() {
     invariant(_constructionCompletionPromise.getFuture().isReady());
+    logd("XOXO ~ShardingDDLCoordinator finished");
 };
 
 SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
