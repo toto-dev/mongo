@@ -62,10 +62,9 @@ structs:
         description: "Represents a drop collection operation on the coordinator shard."
         generate_comparison_operators: false
         strict: true
+        chained_structs:
+            ShardingDDLCoordinatorMetadata: ShardingDDLCoordinatorMetadata
         fields:
-            _id:
-                type: ShardingDDLCoordinatorId
-                cpp_name: id
             state:
                 type: DropCollectionCoordinatorState
                 default: kUninitialized

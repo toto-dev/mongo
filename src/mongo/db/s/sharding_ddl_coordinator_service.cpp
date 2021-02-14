@@ -44,12 +44,29 @@
 
 namespace mongo {
 
-ShardingDDLCoordinatorId extractShardingDDLCoordinatorId(const BSONObj& coorDoc) {
-    const auto idElem = coorDoc["_id"];
-    uassert(
-        6092801, str::stream() << "Missing _id element in DDL operation document", !idElem.eoo());
-    return ShardingDDLCoordinatorId::parse(IDLParserErrorContext("ShardingDDLCoordinatorId"),
-                                           idElem.Obj().getOwned());
+void checkIsPrimaryShardForDb(OperationContext* opCtx, StringData dbName) {
+    invariant(dbName != NamespaceString::kConfigDb);
+    invariant(OperationShardingState::get(opCtx).hasDbVersion());
+
+    const auto dbPrimaryShardId = [&]() {
+        Lock::DBLock dbWriteLock(opCtx, dbName, MODE_IS);
+        auto dss = DatabaseShardingState::get(opCtx, dbName);
+        auto dssLock = DatabaseShardingState::DSSLock::lockShared(opCtx, dss);
+        // The following call will also ensure that the database version matches
+        return dss->getDatabaseInfo(opCtx, dssLock).getPrimary();
+    }();
+
+    const auto& thisShardId = ShardingState::get(opCtx)->shardId();
+
+    uassert(ErrorCodes::IllegalOperation,
+            str::stream() << "This is not the primary shard for db " << dbName
+                          << " expected: " << dbPrimaryShardId << " shardId: " << thisShardId,
+            dbPrimaryShardId == thisShardId);
+}
+
+ShardingDDLCoordinatorMetadata extractShardingDDLCoordinatorMetadata(const BSONObj& coorDoc) {
+    return ShardingDDLCoordinatorMetadata::parse(
+        IDLParserErrorContext("ShardingDDLCoordinatorMetadata"), coorDoc);
 }
 
 const NamespaceString ShardingDDLCoordinatorService::kDDLCoordinatorDocumentsNamespace =
@@ -63,110 +80,62 @@ ShardingDDLCoordinatorService* ShardingDDLCoordinatorService::getService(Operati
 
 std::shared_ptr<ShardingDDLCoordinatorService::Instance>
 ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) const {
-    const auto op = extractShardingDDLCoordinatorId(initialState);
+    const auto op = extractShardingDDLCoordinatorMetadata(initialState);
     LOGV2_DEBUG(5390510,
                 2,
                 "Constructing new sharding DDL coordinator",
-                "coordinatorId"_attr = op.toBSON());
-    switch (op.getOperationType()) {
+                "coordinatorDoc"_attr = op.toBSON());
+    switch (op.getId().getOperationType()) {
         case DDLCoordinatorTypeEnum::kDropCollectionCoordinator:
             return std::make_shared<DropCollectionCoordinator>(std::move(initialState));
             break;
         default:
             uasserted(ErrorCodes::BadValue,
-                      str::stream() << "Encountered unknown Sharding DDL operation type: "
-                                    << DDLCoordinatorType_serializer(op.getOperationType()));
+                      str::stream()
+                          << "Encountered unknown Sharding DDL operation type: "
+                          << DDLCoordinatorType_serializer(op.getId().getOperationType()));
     }
 }
 
 std::shared_ptr<ShardingDDLCoordinatorService::Instance>
-ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx, BSONObj initialState) {
-    const auto opId = extractShardingDDLCoordinatorId(initialState);
-    const auto opName = DDLCoordinatorType_serializer(opId.getOperationType());
-    const auto& nss = opId.getNss();
-    const auto isConfigDB = nss.isConfigDB();
+ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx, BSONObj coorDoc) {
+    auto coorMetadata = extractShardingDDLCoordinatorMetadata(coorDoc);
+    const auto& nss = coorMetadata.getId().getNss();
 
-    // Checks that this is the primary shard for the namespace's db
-    auto checkPrimaryShard = [&] {
-        const auto dbPrimaryShardId = [&]() {
-            Lock::DBLock dbWriteLock(opCtx, nss.db(), MODE_IS);
-            auto dss = DatabaseShardingState::get(opCtx, nss.db());
-            auto dssLock = DatabaseShardingState::DSSLock::lockShared(opCtx, dss);
-            // The following call will also ensure that the database version matches
-            return dss->getDatabaseInfo(opCtx, dssLock).getPrimary();
-        }();
-
-        const auto thisShardId = ShardingState::get(opCtx)->shardId();
-
-        uassert(ErrorCodes::IllegalOperation,
-                str::stream() << "This is not the primary shard for db " << nss.db()
-                              << " expected: " << dbPrimaryShardId << " shardId: " << thisShardId,
-                dbPrimaryShardId == thisShardId);
-    };
-
-    if (!isConfigDB) {
+    if (!nss.isConfigDB()) {
         // Check that the operation context has a database version for this namespace
         const auto clientDbVersion = OperationShardingState::get(opCtx).getDbVersion(nss.db());
         uassert(ErrorCodes::IllegalOperation,
                 str::stream() << "Request sent without attaching database version",
                 clientDbVersion);
-
-        // Check if this is actually the primary shard for the given namespace.
-        // This is a preliminary best effort checks since we are not holding the database lock.
-        checkPrimaryShard();
+        checkIsPrimaryShardForDb(opCtx, nss.db());
+        coorMetadata.setDatabaseVersion(clientDbVersion);
     }
 
-    auto [opAlreadyExists, op] = [&] {
+    coorMetadata.setForwardableOpMetadata({{opCtx}});
+    const auto patchedCoorDoc = coorDoc.addFields(coorMetadata.toBSON());
+
+    auto [alreadyExists, coordinator] = [&] {
         // Prevent concurrent insertion of other instances
         stdx::lock_guard<Latch> lk(_mutex);
 
-        if (auto op = PrimaryOnlyService::lookupInstance(opCtx, BSON("_id" << opId.toBSON()))) {
-            return std::make_pair(true, checked_pointer_cast<ShardingDDLCoordinator>(op.get()));
+        if (auto coordinator = PrimaryOnlyService::lookupInstance(
+                opCtx, BSON("_id" << coorMetadata.getId().toBSON()))) {
+            return std::make_pair(true,
+                                  checked_pointer_cast<ShardingDDLCoordinator>(coordinator.get()));
         }
-        auto op = PrimaryOnlyService::getOrCreateInstance(opCtx, initialState);
-        return std::make_pair(false, checked_pointer_cast<ShardingDDLCoordinator>(op));
+        auto coordinator = PrimaryOnlyService::getOrCreateInstance(opCtx, patchedCoorDoc);
+        return std::make_pair(false,
+                              checked_pointer_cast<ShardingDDLCoordinator>(std::move(coordinator)));
     }();
 
     // If the existing instance doesn't have conflicting options just return that one
-    if (opAlreadyExists) {
-        uassertStatusOK(op->checkIfOptionsConflict(initialState));
-        return op;
+    if (alreadyExists) {
+        uassertStatusOK(coordinator->checkIfOptionsConflict(coorDoc));
+        return coordinator;
     }
 
-    // Complete construction of the newly created instance by taking the locks
-    try {
-        std::stack<DistLockManager::ScopedDistLock> scopedLocks;
-
-        auto distLockManager = DistLockManager::get(opCtx);
-        auto dbDistLock = uassertStatusOK(
-            distLockManager->lock(opCtx, nss.db(), opName, DistLockManager::kDefaultLockTimeout));
-        scopedLocks.emplace(dbDistLock.moveToAnotherThread());
-
-        // Check again under the dbLock if this is still the primary shard for the database
-        if (!isConfigDB) {
-            checkPrimaryShard();
-        }
-
-        if (!nss.ns().empty()) {
-            // TODO if this acquisition fails the scoped DB lock won't be able to unlock since it
-            // doesn't have an opCtx
-            // If the namespace is a collection grab the lock also for it.
-            auto collDistLock = uassertStatusOK(distLockManager->lock(
-                opCtx, nss.ns(), opName, DistLockManager::kDefaultLockTimeout));
-            scopedLocks.emplace(collDistLock.moveToAnotherThread());
-        }
-
-        ForwardableOperationMetadata frwOpMetadata{opCtx};
-
-        op->completeConstruction(std::move(frwOpMetadata), std::move(scopedLocks));
-    } catch (const DBException& ex) {
-        // TODO add error log here to inform about the failed creation of the new coordinator
-        op->failConstruction(
-            ex.toStatus("Failed to complete construction of sharding DDL operation"));
-        throw;
-    }
-
-    return op;
+    return coordinator;
 }
 
 }  // namespace mongo

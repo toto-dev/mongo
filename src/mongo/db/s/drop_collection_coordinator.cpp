@@ -200,13 +200,11 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
             {
                 auto opCtxHolder = cc().makeOperationContext();
                 auto* opCtx = opCtxHolder.get();
-                // TODO restore forwardable operation metadata on stepup
-                _forwardableOpMetadata.setOn(opCtx);
+                getForwardableOpMetadata().setOn(opCtx);
 
                 auto* const shardRegistry = Grid::get(opCtx)->shardRegistry();
                 std::vector<ShardId> participants;
                 const auto collIsSharded = bool(_doc.getCollInfo());
-
 
                 LOGV2_DEBUG(5390504,
                             2,

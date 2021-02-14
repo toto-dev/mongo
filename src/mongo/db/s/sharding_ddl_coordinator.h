@@ -50,30 +50,20 @@ public:
 
     virtual Status checkIfOptionsConflict(const BSONObj& stateDoc) const = 0;
 
-    void failConstruction(Status errorStatus) {
-        _constructionCompletionPromise.setError(errorStatus);
-    };
-
-    void completeConstruction(ForwardableOperationMetadata&& frwOpMetadata,
-                              std::stack<DistLockManager::ScopedDistLock>&& scopedLocks) {
-        _forwardableOpMetadata = std::move(frwOpMetadata);
-        _scopedLocks = std::move(scopedLocks);
-        _constructionCompletionPromise.emplaceValue();
-    };
-
     SemiFuture<void> run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                          const CancelationToken& token) noexcept override;
 
     const NamespaceString& nss() const {
-        return _id.getNss();
+        return _coorMetadata.getId().getNss();
+    };
+
+    const ForwardableOperationMetadata& getForwardableOpMetadata() const {
+        invariant(_coorMetadata.getForwardableOpMetadata());
+        return _coorMetadata.getForwardableOpMetadata().get();
     };
 
 protected:
-    ShardingDDLCoordinatorId _id;
-
-    // It is safe to access the following variables only
-    // when the _constructionCompletionPromise completes.
-    ForwardableOperationMetadata _forwardableOpMetadata;
+    ShardingDDLCoordinatorMetadata _coorMetadata;
     std::stack<DistLockManager::ScopedDistLock> _scopedLocks;
 
 private:

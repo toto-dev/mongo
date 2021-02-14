@@ -30,6 +30,9 @@
 
 global:
     cpp_namespace: "mongo"
+    cpp_includes:
+        - "mongo/db/s/forwardable_operation_metadata.h"
+        - "mongo/s/database_version.h"
 
 imports:
     - "mongo/idl/basic_types.idl"
@@ -41,6 +44,20 @@ enums:
         values:
             kDropDatabaseCoordinator: "dropDatabaseCoordinator"
             kDropCollectionCoordinator: "dropCollectionCoordinator"
+
+types:
+    ForwardableOperationMetadata:
+        description: "Forwardable operation metadata assiociated with this coordinator."
+        cpp_type: ForwardableOperationMetadata
+        bson_serialization_type: object
+        serializer: "mongo::ForwardableOperationMetadata::toBSON"
+        deserializer: "mongo::ForwardableOperationMetadata"
+    DatabaseVersion:
+        description: ""
+        cpp_type: DatabaseVersion
+        bson_serialization_type: object
+        serializer: "mongo::DatabaseVersion::toBSON"
+        deserializer: "mongo::DatabaseVersion"
 
 structs:
     ShardingDDLCoordinatorId:
@@ -55,3 +72,23 @@ structs:
             operationType:
                 description: "Type of the sharding DDL coordinator."
                 type: DDLCoordinatorType
+    
+
+    ShardingDDLCoordinatorMetadata:
+        description: "Commong metadata for all sharding DDL coordinator."
+        generate_comparison_operators: false
+        strict: false
+        fields:
+            _id:
+                type: ShardingDDLCoordinatorId
+                cpp_name: id
+            recoveredFromDisk:
+                type: bool
+                default: false
+            forwardableOpMetadata:
+                type: ForwardableOperationMetadata
+                optional: true
+            databaseVersion:
+                type: DatabaseVersion
+                optional: true
+                

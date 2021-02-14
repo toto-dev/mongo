@@ -38,7 +38,9 @@ namespace mongo {
 /*
  * Extracts the sharding DDL Coordinator ID from a coordinator document
  */
-ShardingDDLCoordinatorId extractShardingDDLCoordinatorId(const BSONObj& coorDoc);
+ShardingDDLCoordinatorMetadata extractShardingDDLCoordinatorMetadata(const BSONObj& coorDoc);
+
+void checkIsPrimaryShardForDb(OperationContext* opCtx, StringData dbName);
 
 class ShardingDDLCoordinatorService final : public repl::PrimaryOnlyService {
 public:

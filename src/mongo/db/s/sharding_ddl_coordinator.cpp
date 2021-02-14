@@ -42,7 +42,7 @@
 namespace mongo {
 
 ShardingDDLCoordinator::ShardingDDLCoordinator(const BSONObj& coorDoc)
-    : _id(extractShardingDDLCoordinatorId(coorDoc)){};
+    : _coorMetadata(extractShardingDDLCoordinatorMetadata(coorDoc)){};
 
 ShardingDDLCoordinator::~ShardingDDLCoordinator() {
     invariant(_constructionCompletionPromise.getFuture().isReady());
@@ -50,8 +50,42 @@ ShardingDDLCoordinator::~ShardingDDLCoordinator() {
 
 SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                              const CancelationToken& token) noexcept {
-    return _constructionCompletionPromise.getFuture()
-        .thenRunOn(**executor)
+    return ExecutorFuture<void>(**executor)
+        .then([this, executor, token, anchor = shared_from_this()] {
+            auto opCtxHolder = cc().makeOperationContext();
+            auto* opCtx = opCtxHolder.get();
+            const auto& coorName =
+                DDLCoordinatorType_serializer(_coorMetadata.getId().getOperationType());
+
+            auto distLockManager = DistLockManager::get(opCtx);
+            auto dbDistLock = uassertStatusOK(distLockManager->lock(
+                opCtx, nss().db(), coorName, DistLockManager::kDefaultLockTimeout));
+            _scopedLocks.emplace(dbDistLock.moveToAnotherThread());
+
+            if (!nss().isConfigDB() && !_coorMetadata.getRecoveredFromDisk()) {
+                invariant(_coorMetadata.getDatabaseVersion());
+
+                OperationShardingState::get(opCtx).initializeClientRoutingVersions(
+                    nss(), boost::none /* ChunkVersion */, _coorMetadata.getDatabaseVersion());
+                // Check under the dbLock if this is still the primary shard for the database
+                checkIsPrimaryShardForDb(opCtx, nss().db());
+            };
+
+            if (!nss().ns().empty()) {
+                auto collDistLock = uassertStatusOK(distLockManager->lock(
+                    opCtx, nss().ns(), coorName, DistLockManager::kDefaultLockTimeout));
+                _scopedLocks.emplace(collDistLock.moveToAnotherThread());
+            }
+
+            _constructionCompletionPromise.emplaceValue();
+        })
+        .onError([this, anchor = shared_from_this()](const Status& status) {
+            // TODO add error log here to inform about the failed creation of the new
+            // coordinator
+            _constructionCompletionPromise.setError(
+                status.withContext("Failed to complete construction of sharding DDL coordinator"));
+            return status;
+        })
         .then([this, executor, token, anchor = shared_from_this()] {
             return _runImpl(executor, token);
         })

@@ -35,26 +35,34 @@
 
 namespace mongo {
 
+ForwardableOperationMetadata::ForwardableOperationMetadata(const BSONObj& obj) {
+    ForwardableOperationMetadataBase::parse(
+        IDLParserErrorContext("ForwardableOperationMetadataBase"), obj);
+}
+
 ForwardableOperationMetadata::ForwardableOperationMetadata(OperationContext* opCtx) {
     if (auto optComment = opCtx->getComment()) {
         setComment(optComment->wrap());
     }
     auto authzSession = AuthorizationSession::get(opCtx->getClient());
-    setImpersonatedUserMetadata({userNameIteratorToContainer<std::vector<UserName>>(
-                                     authzSession->getImpersonatedUserNames()),
-                                 roleNameIteratorToContainer<std::vector<RoleName>>(
-                                     authzSession->getImpersonatedRoleNames())});
+    setImpersonatedUserMetadata({{userNameIteratorToContainer<std::vector<UserName>>(
+                                      authzSession->getImpersonatedUserNames()),
+                                  roleNameIteratorToContainer<std::vector<RoleName>>(
+                                      authzSession->getImpersonatedRoleNames())}});
 }
 
-void ForwardableOperationMetadata::setOn(OperationContext* opCtx) {
+void ForwardableOperationMetadata::setOn(OperationContext* opCtx) const {
     if (const auto& comment = getComment()) {
         opCtx->setComment(comment.get());
     }
 
-    const auto& authMetadata = getImpersonatedUserMetadata();
-    if (!authMetadata.getUsers().empty() || !authMetadata.getRoles().empty())
-        AuthorizationSession::get(opCtx->getClient())
-            ->setImpersonatedUserData(authMetadata.getUsers(), authMetadata.getRoles());
+    if (const auto& optAuthMetadata = getImpersonatedUserMetadata()) {
+        const auto& authMetadata = optAuthMetadata.get();
+        if (!authMetadata.getUsers().empty() || !authMetadata.getRoles().empty()) {
+            AuthorizationSession::get(opCtx->getClient())
+                ->setImpersonatedUserData(authMetadata.getUsers(), authMetadata.getRoles());
+        }
+    }
 }
 
 }  // namespace mongo
