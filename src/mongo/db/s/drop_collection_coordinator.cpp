@@ -195,7 +195,7 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
             _transitionToState(State::kCollectionFrozen);
         })
         .then([this, anchor = shared_from_this()] {
-            if (_doc.getState() >= State::kMetadataCleanedOnConfig)
+            if (_doc.getState() >= State::kDropped)
                 return;
             {
                 auto opCtxHolder = cc().makeOperationContext();
@@ -227,7 +227,7 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
 
                 _sendDropCollToParticipants(opCtx, std::move(participants));
             }
-            _transitionToState(State::kMetadataCleanedOnConfig);
+            _transitionToState(State::kDropped);
         })
         .onCompletion([this, anchor = shared_from_this()](const Status& status) {
             stdx::lock_guard<Latch> lk(_mutex);

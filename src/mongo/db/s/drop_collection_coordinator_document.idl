@@ -46,9 +46,7 @@ enums:
             kUninitialized: "uninitialized"
             kInitialized: "initialized"
             kCollectionFrozen: "collectionFrozen"
-            kFetchedCollInfo: "fetchedCollInfo"
-            kMetadataCleanedOnConfig: "metadataCleanedOnConfig"
-            kCollectionDroppedOnParticipants: "collectionDroppedOnParticipants"
+            kDropped: "dropped"
             kError: "error"
 
 types:
