@@ -245,12 +245,13 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                             "namespace"_attr = nss(),
                             "error"_attr = redact(status));
                 // TODO _transitionToState(State::kError);
+                // TODO delete the state doc?
                 _completionPromise.setError(status);
                 return;
             }
 
             LOGV2_DEBUG(5390503, 1, "Collection dropped", "namespace"_attr = nss());
-            // TODO _removeStateDocument();
+            _removeStateDocument();
             _completionPromise.emplaceValue();
         });
 }
