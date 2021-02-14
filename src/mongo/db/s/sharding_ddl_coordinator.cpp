@@ -37,6 +37,7 @@
 #include "mongo/db/s/operation_sharding_state.h"
 #include "mongo/db/s/sharding_ddl_coordinator_gen.h"
 #include "mongo/db/s/sharding_state.h"
+#include "mongo/logv2/log_debug.h"
 #include "mongo/s/grid.h"
 
 namespace mongo {
@@ -90,6 +91,7 @@ SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTas
             return _runImpl(executor, token);
         })
         .onCompletion([this, anchor = shared_from_this()](const Status& status) {
+            logd("XOXO unlocking");
             auto opCtxHolder = cc().makeOperationContext();
             auto* opCtx = opCtxHolder.get();
 
@@ -97,6 +99,7 @@ SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTas
                 _scopedLocks.top().assignNewOpCtx(opCtx);
                 _scopedLocks.pop();
             }
+            logd("XOXO finished unlocking with status {}", status);
             return status;
         })
         .semi();

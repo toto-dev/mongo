@@ -121,6 +121,7 @@ ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx, BSON
 
         if (auto coordinator = PrimaryOnlyService::lookupInstance(
                 opCtx, BSON("_id" << coorMetadata.getId().toBSON()))) {
+            logd("XOXO coordinator already exists");
             return std::make_pair(true,
                                   checked_pointer_cast<ShardingDDLCoordinator>(coordinator.get()));
         }
