@@ -89,6 +89,7 @@ Status DropCollectionCoordinator::checkIfOptionsConflict(const BSONObj& doc) con
 
 void DropCollectionCoordinator::_insertStateDocument(StateDoc&& doc) {
     auto coorMetadata = doc.getShardingDDLCoordinatorMetadata();
+    // TODO we can do this on the step up for all the documents
     coorMetadata.setRecoveredFromDisk(true);
     doc.setShardingDDLCoordinatorMetadata(coorMetadata);
 
