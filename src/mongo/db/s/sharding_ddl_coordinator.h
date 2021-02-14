@@ -46,7 +46,7 @@ class ShardingDDLCoordinator
 public:
     explicit ShardingDDLCoordinator(const BSONObj& coorDoc);
 
-    virtual ~ShardingDDLCoordinator() = default;
+    ~ShardingDDLCoordinator();
 
     virtual Status checkIfOptionsConflict(const BSONObj& stateDoc) const = 0;
 

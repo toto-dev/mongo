@@ -44,6 +44,10 @@ namespace mongo {
 ShardingDDLCoordinator::ShardingDDLCoordinator(const BSONObj& coorDoc)
     : _id(extractShardingDDLCoordinatorId(coorDoc)){};
 
+ShardingDDLCoordinator::~ShardingDDLCoordinator() {
+    invariant(_constructionCompletionPromise.getFuture().isReady());
+};
+
 SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                              const CancelationToken& token) noexcept {
     return _constructionCompletionPromise.getFuture()
