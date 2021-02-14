@@ -37,6 +37,9 @@ namespace mongo {
 
 class DropCollectionCoordinator final : public ShardingDDLCoordinator {
 public:
+    using StateDoc = DropCollectionCoordinatorDocument;
+    using State = DropCollectionCoordinatorStateEnum;
+
     DropCollectionCoordinator(const BSONObj& initialState);
     ~DropCollectionCoordinator() override;
 
@@ -56,15 +59,18 @@ public:
         return _completionPromise.getFuture();
     }
 
-
 private:
     ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                   const CancelationToken& token) noexcept override;
 
-    void _stopMigrations(OperationContext* opCtx);
-    void _sendDropCollToParticipants(OperationContext* opCtx);
+    void _stopMigrations(OperationContext* opCtx) const;
+    void _sendDropCollToParticipants(OperationContext* opCtx,
+                                     const std::vector<ShardId>& participants) const;
 
-    std::vector<ShardId> _participants;
+    void _insertStateDocument(StateDoc&& doc);
+    void _updateStateDocument(StateDoc&& newStateDoc);
+    void _removeStateDocument();
+    void _transitionToState(State newState);
 
     DropCollectionCoordinatorDocument _doc;
 

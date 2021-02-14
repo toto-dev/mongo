@@ -31,6 +31,8 @@
 
 global:
     cpp_namespace: "mongo"
+    cpp_includes:
+        - "mongo/s/catalog/type_collection.h"
 
 imports:
     - "mongo/idl/basic_types.idl"
@@ -49,6 +51,14 @@ enums:
             kCollectionDroppedOnParticipants: "collectionDroppedOnParticipants"
             kError: "error"
 
+types:
+    CollectionInfo:
+        description: "Information of the collection to drop."
+        bson_serialization_type: object
+        cpp_type: CollectionType
+        serializer: "mongo::CollectionType::toBSON"
+        deserializer: "mongo::CollectionType"
+
 structs:
     DropCollectionCoordinatorDocument:
         description: "Represents a drop collection operation on the coordinator shard."
@@ -61,8 +71,7 @@ structs:
             state:
                 type: DropCollectionCoordinatorState
                 default: kUninitialized
-            sharded:
-                type: bool
-                description: "If the collection was sharded."
-                default: false
+            collInfo:
+                type: CollectionInfo
+                optional: true
 
