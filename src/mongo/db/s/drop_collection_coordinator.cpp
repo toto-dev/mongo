@@ -31,95 +31,222 @@
 
 #include "mongo/db/s/drop_collection_coordinator.h"
 
-#include "mongo/db/api_parameters.h"
-#include "mongo/db/catalog_raii.h"
-#include "mongo/db/concurrency/lock_manager_defs.h"
-#include "mongo/db/s/database_sharding_state.h"
-#include "mongo/db/s/dist_lock_manager.h"
-#include "mongo/db/s/drop_collection_coordinator.h"
+#include "mongo/db/persistent_task_store.h"
 #include "mongo/db/s/sharding_ddl_util.h"
 #include "mongo/db/s/sharding_state.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/catalog/sharding_catalog_client.h"
-#include "mongo/s/catalog/type_chunk.h"
-#include "mongo/s/catalog/type_shard.h"
-#include "mongo/s/catalog/type_tags.h"
 #include "mongo/s/client/shard_registry.h"
 #include "mongo/s/grid.h"
 #include "mongo/s/request_types/sharded_ddl_commands_gen.h"
-#include "mongo/util/assert_util.h"
 
 namespace mongo {
 
-DropCollectionCoordinator::DropCollectionCoordinator(OperationContext* opCtx,
-                                                     const NamespaceString& nss)
-    : ShardingDDLCoordinator_NORESILIENT(opCtx, nss), _serviceContext(opCtx->getServiceContext()) {}
+DropCollectionCoordinator::DropCollectionCoordinator(const BSONObj& initialState)
+    : ShardingDDLCoordinator(initialState),
+      _doc(DropCollectionCoordinatorDocument::parse(
+          IDLParserErrorContext("DropCollectionCoordinatorDocument"), initialState)) {}
 
-void DropCollectionCoordinator::_sendDropCollToParticipants(OperationContext* opCtx) {
+DropCollectionCoordinator::~DropCollectionCoordinator() {
+    stdx::lock_guard<Latch> lg(_mutex);
+    invariant(_completionPromise.getFuture().isReady());
+}
+
+void DropCollectionCoordinator::interrupt(Status status) {
+    LOGV2_DEBUG(5390502,
+                1,
+                "Drop collection coordinator received an interrupt",
+                "namespace"_attr = nss(),
+                "reason"_attr = redact(status));
+
+    // Resolve any unresolved promises to avoid hanging.
+    stdx::lock_guard<Latch> lg(_mutex);
+    if (!_completionPromise.getFuture().isReady()) {
+        _completionPromise.setError(status);
+    }
+}
+
+boost::optional<BSONObj> DropCollectionCoordinator::reportForCurrentOp(
+    MongoProcessInterface::CurrentOpConnectionsMode connMode,
+    MongoProcessInterface::CurrentOpSessionsMode sessionMode) noexcept {
+
+    BSONObjBuilder cmdBob;
+    if (const auto& optComment = getForwardableOpMetadata().getComment()) {
+        cmdBob.append("comment", optComment.get());
+    }
+    BSONObjBuilder bob;
+    bob.append("type", "op");
+    bob.append("desc", "DropCollectionCoordinator");
+    bob.append("op", "command");
+    bob.append("ns", nss().toString());
+    bob.append("command", cmdBob.obj());
+    bob.append("state", _doc.getState());
+    bob.append("active", true);
+    return bob.obj();
+}
+
+void DropCollectionCoordinator::checkIfOptionsConflict(const BSONObj& doc) const {};
+
+void DropCollectionCoordinator::_insertStateDocument(StateDoc&& doc) {
+    auto coorMetadata = doc.getShardingDDLCoordinatorMetadata();
+    // TODO we can do this on the step up for all the documents
+    coorMetadata.setRecoveredFromDisk(true);
+    doc.setShardingDDLCoordinatorMetadata(coorMetadata);
+
+    auto opCtx = cc().makeOperationContext();
+    PersistentTaskStore<StateDoc> store(NamespaceString::kShardingDDLCoordinatorsNamespace);
+    store.add(opCtx.get(), doc, WriteConcerns::kMajorityWriteConcern);
+    _doc = doc;
+}
+
+void DropCollectionCoordinator::_updateStateDocument(StateDoc&& newDoc) {
+    auto opCtx = cc().makeOperationContext();
+    PersistentTaskStore<StateDoc> store(NamespaceString::kShardingDDLCoordinatorsNamespace);
+    store.update(opCtx.get(),
+                 BSON(StateDoc::kIdFieldName << _doc.getId().toBSON()),
+                 newDoc.toBSON(),
+                 WriteConcerns::kMajorityWriteConcern);
+
+    _doc = newDoc;
+}
+
+void DropCollectionCoordinator::_moveToState(State newState) {
+    StateDoc newDoc(_doc);
+    newDoc.setState(newState);
+
+    LOGV2_DEBUG(5390501,
+                2,
+                "Drop collection coordinator state transition",
+                "namespace"_attr = nss(),
+                "newState"_attr = DropCollectionCoordinatorState_serializer(newDoc.getState()),
+                "oldState"_attr = DropCollectionCoordinatorState_serializer(_doc.getState()));
+
+    if (_doc.getState() < State::kInitialized) {
+        _insertStateDocument(std::move(newDoc));
+        return;
+    }
+    _updateStateDocument(std::move(newDoc));
+}
+
+void DropCollectionCoordinator::_removeStateDocument() {
+    auto opCtx = cc().makeOperationContext();
+    PersistentTaskStore<StateDoc> store(NamespaceString::kShardingDDLCoordinatorsNamespace);
+    LOGV2_DEBUG(5390502,
+                2,
+                "Removing state document for drop collection coordinator",
+                "namespace"_attr = nss());
+    store.remove(opCtx.get(),
+                 BSON(StateDoc::kIdFieldName << _doc.getId().toBSON()),
+                 WriteConcerns::kMajorityWriteConcern);
+
+    _doc = {};
+}
+
+void DropCollectionCoordinator::_stopMigrations(OperationContext* opCtx) const {
+    // TODO SERVER-53861 this will not stop current ongoing migrations
+    uassertStatusOK(Grid::get(opCtx)->catalogClient()->updateConfigDocument(
+        opCtx,
+        CollectionType::ConfigNS,
+        BSON(CollectionType::kNssFieldName << nss().ns()),
+        BSON("$set" << BSON(CollectionType::kAllowMigrationsFieldName << false)),
+        false /* upsert */,
+        ShardingCatalogClient::kMajorityWriteConcern));
+}
+
+void DropCollectionCoordinator::_sendDropCollToParticipants(
+    OperationContext* opCtx, const std::vector<ShardId>& participants) const {
+    const ShardsvrDropCollectionParticipant dropCollectionParticipant(nss());
     auto* const shardRegistry = Grid::get(opCtx)->shardRegistry();
 
-    const ShardsvrDropCollectionParticipant dropCollectionParticipant(_nss);
-
-    for (const auto& shardId : _participants) {
+    for (const auto& shardId : participants) {
         const auto& shard = uassertStatusOK(shardRegistry->getShard(opCtx, shardId));
 
         const auto swDropResult = shard->runCommandWithFixedRetryAttempts(
             opCtx,
             ReadPreferenceSetting{ReadPreference::PrimaryOnly},
-            _nss.db().toString(),
+            nss().db().toString(),
             CommandHelpers::appendMajorityWriteConcern(dropCollectionParticipant.toBSON({})),
             Shard::RetryPolicy::kIdempotent);
 
         uassertStatusOKWithContext(
             Shard::CommandResponse::getEffectiveStatus(std::move(swDropResult)),
-            str::stream() << "Error dropping collection " << _nss.toString()
+            str::stream() << "Error dropping collection " << nss().toString()
                           << " on participant shard " << shardId);
     }
 }
 
-SemiFuture<void> DropCollectionCoordinator::runImpl(
-    std::shared_ptr<executor::TaskExecutor> executor) {
-    return ExecutorFuture<void>(executor, Status::OK())
-        .then([this, anchor = shared_from_this()]() {
-            ThreadClient tc{"DropCollectionCoordinator", _serviceContext};
-            auto opCtxHolder = tc->makeOperationContext();
-            auto* opCtx = opCtxHolder.get();
-            _forwardableOpMetadata.setOn(opCtx);
+ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
+    std::shared_ptr<executor::ScopedTaskExecutor> executor,
+    const CancelationToken& token) noexcept {
+    return ExecutorFuture<void>(**executor)
+        .then(_transitionToState(State::kInitialized, [this, anchor = shared_from_this()] {}))
+        .then(_transitionToState(
+            State::kCollectionFrozen,
+            [this, anchor = shared_from_this()] {
+                auto opCtx = cc().makeOperationContext();
+                try {
+                    sharding_ddl_util::stopMigrations(opCtx.get(), nss());
+                    auto coll =
+                        Grid::get(opCtx.get())->catalogClient()->getCollection(opCtx.get(), nss());
+                    _doc.setCollInfo(std::move(coll));
+                } catch (ExceptionFor<ErrorCodes::NamespaceNotSharded>&) {
+                    // The collection is not sharded or doesn't exist.
+                    _doc.setCollInfo(boost::none);
+                }
+            }))
+        .then(_transitionToState(
+            State::kDropped,
+            [this, anchor = shared_from_this()] {
+                auto opCtxHolder = cc().makeOperationContext();
+                auto* opCtx = opCtxHolder.get();
+                getForwardableOpMetadata().setOn(opCtx);
 
-            auto distLockManager = DistLockManager::get(_serviceContext);
-            const auto dbDistLock = uassertStatusOK(distLockManager->lock(
-                opCtx, _nss.db(), "DropCollection", DistLockManager::kDefaultLockTimeout));
-            const auto collDistLock = uassertStatusOK(distLockManager->lock(
-                opCtx, _nss.ns(), "DropCollection", DistLockManager::kDefaultLockTimeout));
+                auto* const shardRegistry = Grid::get(opCtx)->shardRegistry();
+                std::vector<ShardId> participants;
+                const auto collIsSharded = bool(_doc.getCollInfo());
 
-            try {
-                sharding_ddl_util::stopMigrations(opCtx, _nss);
-            } catch (ExceptionFor<ErrorCodes::NamespaceNotSharded>&) {
-                // The collection is not sharded or doesn't exist.
+                LOGV2_DEBUG(5390504,
+                            2,
+                            "Dropping collection",
+                            "namespace"_attr = nss(),
+                            "sharded"_attr = collIsSharded);
+                if (collIsSharded) {
+                    invariant(_doc.getCollInfo());
+                    const auto& coll = _doc.getCollInfo().get();
+                    // TODO handle failures here
+                    sharding_ddl_util::removeCollMetadataFromConfig(opCtx, coll);
+                    participants = shardRegistry->getAllShardIds(opCtx);
+                } else {
+                    // The collection is not sharded or didn't exist, just remove
+                    // tags
+                    sharding_ddl_util::removeTagsMetadataFromConfig(opCtx, nss());
+                    participants = {ShardingState::get(opCtx)->shardId()};
+                }
+
+                _sendDropCollToParticipants(opCtx, std::move(participants));
+            }))
+        .onCompletion([this, anchor = shared_from_this()](const Status& status) {
+            stdx::lock_guard<Latch> lk(_mutex);
+            if (_completionPromise.getFuture().isReady()) {
+                // interrupt() was called before we got here.
+                return;
             }
 
-            const auto catalogClient = Grid::get(opCtx)->catalogClient();
-
-            try {
-                auto coll = catalogClient->getCollection(opCtx, _nss);
-                sharding_ddl_util::removeCollMetadataFromConfig(opCtx, coll);
-                _participants = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
-            } catch (ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
-                // The collection is not sharded or doesn't exist, just remove tags
-                sharding_ddl_util::removeTagsMetadataFromConfig(opCtx, _nss);
-                _participants = {ShardingState::get(opCtx)->shardId()};
+            if (!status.isOK()) {
+                LOGV2_ERROR(5280901,
+                            "Error running drop collection",
+                            "namespace"_attr = nss(),
+                            "error"_attr = redact(status));
+                // TODO _moveToState(State::kError);
+                // TODO delete the state doc?
+                _completionPromise.setError(status);
+                return;
             }
 
-            _sendDropCollToParticipants(opCtx);
-        })
-        .onError([this, anchor = shared_from_this()](const Status& status) {
-            LOGV2_ERROR(5280901,
-                        "Error running drop collection",
-                        "namespace"_attr = _nss,
-                        "error"_attr = redact(status));
-            return status;
-        })
-        .semi();
+            LOGV2_DEBUG(5390503, 1, "Collection dropped", "namespace"_attr = nss());
+            _removeStateDocument();
+            _completionPromise.emplaceValue();
+        });
 }
 
 }  // namespace mongo

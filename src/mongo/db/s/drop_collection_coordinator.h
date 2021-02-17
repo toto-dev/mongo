@@ -29,24 +29,64 @@
 
 #pragma once
 
+#include "mongo/db/s/drop_collection_coordinator_document_gen.h"
 #include "mongo/db/s/sharding_ddl_coordinator.h"
 #include "mongo/s/shard_id.h"
 
 namespace mongo {
 
-class DropCollectionCoordinator final
-    : public ShardingDDLCoordinator_NORESILIENT,
-      public std::enable_shared_from_this<DropCollectionCoordinator> {
+class DropCollectionCoordinator final : public ShardingDDLCoordinator {
 public:
-    DropCollectionCoordinator(OperationContext* opCtx, const NamespaceString& nss);
+    using StateDoc = DropCollectionCoordinatorDocument;
+    using State = DropCollectionCoordinatorStateEnum;
+
+    DropCollectionCoordinator(const BSONObj& initialState);
+    ~DropCollectionCoordinator() override;
+
+    void checkIfOptionsConflict(const BSONObj& doc) const;
+
+    void interrupt(Status status) override;
+
+    boost::optional<BSONObj> reportForCurrentOp(
+        MongoProcessInterface::CurrentOpConnectionsMode connMode,
+        MongoProcessInterface::CurrentOpSessionsMode sessionMode) noexcept override;
+
+    /**
+     * Returns a Future that will be resolved when all work associated with this Instance has
+     * completed running.
+     */
+    SharedSemiFuture<void> getCompletionFuture() const {
+        return _completionPromise.getFuture();
+    }
 
 private:
-    SemiFuture<void> runImpl(std::shared_ptr<executor::TaskExecutor> executor) override;
+    ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                                  const CancelationToken& token) noexcept override;
 
-    void _sendDropCollToParticipants(OperationContext* opCtx);
+    void _stopMigrations(OperationContext* opCtx) const;
+    void _sendDropCollToParticipants(OperationContext* opCtx,
+                                     const std::vector<ShardId>& participants) const;
 
-    ServiceContext* _serviceContext;
-    std::vector<ShardId> _participants;
+    template <typename Func>
+    auto _transitionToState(const State& state, Func&& transitionFunc) {
+        return [=] {
+            if (_doc.getState() >= state) {
+                return;
+            }
+            transitionFunc();
+            _moveToState(state);
+        };
+    };
+
+    void _insertStateDocument(StateDoc&& doc);
+    void _updateStateDocument(StateDoc&& newStateDoc);
+    void _removeStateDocument();
+    void _moveToState(State newState);
+
+    DropCollectionCoordinatorDocument _doc;
+
+    Mutex _mutex = MONGO_MAKE_LATCH("DropCollectionCoordinator::_mutex");
+    SharedPromise<void> _completionPromise;
 };
 
 }  // namespace mongo

@@ -36,6 +36,7 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/s/drop_collection_coordinator.h"
 #include "mongo/db/s/drop_collection_legacy.h"
+#include "mongo/db/s/sharding_ddl_coordinator_service.h"
 #include "mongo/db/s/sharding_state.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/grid.h"
@@ -99,9 +100,17 @@ public:
             CurOp::get(opCtx)->raiseDbProfileLevel(
                 CollectionCatalog::get(opCtx)->getDatabaseProfileLevel(ns().db()));
 
-            auto dropCollectionCoordinator =
-                std::make_shared<DropCollectionCoordinator>(opCtx, ns());
-            dropCollectionCoordinator->run(opCtx).get();
+            auto coordinatorDoc = DropCollectionCoordinatorDocument();
+            // TODO simplify name
+            coordinatorDoc.setShardingDDLCoordinatorMetadata(
+                {{ns(), DDLCoordinatorTypeEnum::kDropCollection}});
+
+            // TODO expose a spcialized getOrCreate on the coordinator to hide the retrival of the
+            // service.
+            auto service = ShardingDDLCoordinatorService::getService(opCtx);
+            auto dropCollCoordinator = checked_pointer_cast<DropCollectionCoordinator>(
+                service->getOrCreateInstance(opCtx, coordinatorDoc.toBSON()));
+            dropCollCoordinator->getCompletionFuture().get(opCtx);
         }
 
     private:
