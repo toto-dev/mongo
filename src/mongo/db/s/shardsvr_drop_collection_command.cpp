@@ -101,12 +101,8 @@ public:
                 CollectionCatalog::get(opCtx)->getDatabaseProfileLevel(ns().db()));
 
             auto coordinatorDoc = DropCollectionCoordinatorDocument();
-            // TODO simplify name
             coordinatorDoc.setShardingDDLCoordinatorMetadata(
                 {{ns(), DDLCoordinatorTypeEnum::kDropCollection}});
-
-            // TODO expose a spcialized getOrCreate on the coordinator to hide the retrival of the
-            // service.
             auto service = ShardingDDLCoordinatorService::getService(opCtx);
             auto dropCollCoordinator = checked_pointer_cast<DropCollectionCoordinator>(
                 service->getOrCreateInstance(opCtx, coordinatorDoc.toBSON()));
