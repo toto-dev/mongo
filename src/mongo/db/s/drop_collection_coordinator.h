@@ -63,7 +63,6 @@ private:
     ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                   const CancelationToken& token) noexcept override;
 
-    void _stopMigrations(OperationContext* opCtx) const;
     void _sendDropCollToParticipants(OperationContext* opCtx,
                                      const std::vector<ShardId>& participants) const;
 

@@ -142,17 +142,6 @@ void DropCollectionCoordinator::_removeStateDocument() {
     _doc = {};
 }
 
-void DropCollectionCoordinator::_stopMigrations(OperationContext* opCtx) const {
-    // TODO SERVER-53861 this will not stop current ongoing migrations
-    uassertStatusOK(Grid::get(opCtx)->catalogClient()->updateConfigDocument(
-        opCtx,
-        CollectionType::ConfigNS,
-        BSON(CollectionType::kNssFieldName << nss().ns()),
-        BSON("$set" << BSON(CollectionType::kAllowMigrationsFieldName << false)),
-        false /* upsert */,
-        ShardingCatalogClient::kMajorityWriteConcern));
-}
-
 void DropCollectionCoordinator::_sendDropCollToParticipants(
     OperationContext* opCtx, const std::vector<ShardId>& participants) const {
     const ShardsvrDropCollectionParticipant dropCollectionParticipant(nss());
@@ -183,11 +172,13 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
         .then(_transitionToState(
             State::kCollectionFrozen,
             [this, anchor = shared_from_this()] {
-                auto opCtx = cc().makeOperationContext();
+                auto opCtxHolder = cc().makeOperationContext();
+                auto* opCtx = opCtxHolder.get();
+                getForwardableOpMetadata().setOn(opCtx);
+
                 try {
-                    sharding_ddl_util::stopMigrations(opCtx.get(), nss());
-                    auto coll =
-                        Grid::get(opCtx.get())->catalogClient()->getCollection(opCtx.get(), nss());
+                    sharding_ddl_util::stopMigrations(opCtx, nss());
+                    auto coll = Grid::get(opCtx)->catalogClient()->getCollection(opCtx, nss());
                     _doc.setCollInfo(std::move(coll));
                 } catch (ExceptionFor<ErrorCodes::NamespaceNotSharded>&) {
                     // The collection is not sharded or doesn't exist.
