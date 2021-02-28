@@ -76,12 +76,8 @@ public:
                                   << opCtx->getWriteConcern().wMode,
                     opCtx->getWriteConcern().wMode == WriteConcernOptions::kMajority);
 
-            bool useNewPath = [&] {
-                return feature_flags::gShardingFullDDLSupport.isEnabled(
-                           serverGlobalParams.featureCompatibility) &&
-                    !feature_flags::gDisableIncompleteShardingDDLSupport.isEnabled(
-                        serverGlobalParams.featureCompatibility);
-            }();
+            const auto useNewPath = feature_flags::gShardingFullDDLSupport.isEnabled(
+                serverGlobalParams.featureCompatibility);
 
             if (!useNewPath) {
                 LOGV2_DEBUG(5280951,
