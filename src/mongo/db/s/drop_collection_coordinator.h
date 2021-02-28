@@ -63,9 +63,6 @@ private:
     ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                   const CancelationToken& token) noexcept override;
 
-    void _sendDropCollToParticipants(OperationContext* opCtx,
-                                     const std::vector<ShardId>& participants) const;
-
     template <typename Func>
     auto _transitionToState(const State& state, Func&& transitionFunc) {
         return [=] {

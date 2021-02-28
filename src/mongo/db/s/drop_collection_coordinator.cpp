@@ -34,6 +34,7 @@
 #include "mongo/db/persistent_task_store.h"
 #include "mongo/db/s/sharding_ddl_util.h"
 #include "mongo/db/s/sharding_state.h"
+#include "mongo/db/s/sharding_util.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/catalog/sharding_catalog_client.h"
 #include "mongo/s/client/shard_registry.h"
@@ -142,28 +143,6 @@ void DropCollectionCoordinator::_removeStateDocument() {
     _doc = {};
 }
 
-void DropCollectionCoordinator::_sendDropCollToParticipants(
-    OperationContext* opCtx, const std::vector<ShardId>& participants) const {
-    const ShardsvrDropCollectionParticipant dropCollectionParticipant(nss());
-    auto* const shardRegistry = Grid::get(opCtx)->shardRegistry();
-
-    for (const auto& shardId : participants) {
-        const auto& shard = uassertStatusOK(shardRegistry->getShard(opCtx, shardId));
-
-        const auto swDropResult = shard->runCommandWithFixedRetryAttempts(
-            opCtx,
-            ReadPreferenceSetting{ReadPreference::PrimaryOnly},
-            nss().db().toString(),
-            CommandHelpers::appendMajorityWriteConcern(dropCollectionParticipant.toBSON({})),
-            Shard::RetryPolicy::kIdempotent);
-
-        uassertStatusOKWithContext(
-            Shard::CommandResponse::getEffectiveStatus(std::move(swDropResult)),
-            str::stream() << "Error dropping collection " << nss().toString()
-                          << " on participant shard " << shardId);
-    }
-}
-
 ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
     std::shared_ptr<executor::ScopedTaskExecutor> executor,
     const CancelationToken& token) noexcept {
@@ -187,13 +166,11 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
             }))
         .then(_transitionToState(
             State::kDropped,
-            [this, anchor = shared_from_this()] {
+            [this, executor = executor, anchor = shared_from_this()] {
                 auto opCtxHolder = cc().makeOperationContext();
                 auto* opCtx = opCtxHolder.get();
                 getForwardableOpMetadata().setOn(opCtx);
 
-                auto* const shardRegistry = Grid::get(opCtx)->shardRegistry();
-                std::vector<ShardId> participants;
                 const auto collIsSharded = bool(_doc.getCollInfo());
 
                 LOGV2_DEBUG(5390504,
@@ -201,20 +178,38 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                             "Dropping collection",
                             "namespace"_attr = nss(),
                             "sharded"_attr = collIsSharded);
+
                 if (collIsSharded) {
                     invariant(_doc.getCollInfo());
                     const auto& coll = _doc.getCollInfo().get();
-                    // TODO handle failures here
                     sharding_ddl_util::removeCollMetadataFromConfig(opCtx, coll);
-                    participants = shardRegistry->getAllShardIds(opCtx);
                 } else {
-                    // The collection is not sharded or didn't exist, just remove
-                    // tags
+                    // The collection is not sharded or didn't exist, just remove tags
                     sharding_ddl_util::removeTagsMetadataFromConfig(opCtx, nss());
-                    participants = {ShardingState::get(opCtx)->shardId()};
                 }
 
-                _sendDropCollToParticipants(opCtx, std::move(participants));
+                const auto primaryShardId = ShardingState::get(opCtx)->shardId();
+                const ShardsvrDropCollectionParticipant dropCollectionParticipant(nss());
+                sharding_util::sendCommandToShards(opCtx,
+                                                   nss().db(),
+                                                   CommandHelpers::appendMajorityWriteConcern(
+                                                       dropCollectionParticipant.toBSON({})),
+                                                   {primaryShardId},
+                                                   **executor);
+
+                if (collIsSharded) {
+                    auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
+                    // Remove prumary shard from participants
+                    participants.erase(
+                        std::remove(participants.begin(), participants.end(), primaryShardId),
+                        participants.end());
+                    sharding_util::sendCommandToShards(opCtx,
+                                                       nss().db(),
+                                                       CommandHelpers::appendMajorityWriteConcern(
+                                                           dropCollectionParticipant.toBSON({})),
+                                                       participants,
+                                                       **executor);
+                }
             }))
         .onCompletion([this, anchor = shared_from_this()](const Status& status) {
             stdx::lock_guard<Latch> lk(_mutex);
