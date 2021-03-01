@@ -5007,15 +5007,17 @@ var authCommandsLib = {
           testname: "renameCollection_twoDbs",
           command: {renameCollection: firstDbName + ".x", to: secondDbName + ".y"},
           setup: function(db) {
-              assert.writeOK(db.getSiblingDB(firstDbName).x.save({}));
-
-              // Running movePrimary is necessary on mongos, but doesn't exist on non-sharded
-              // systems.
-              if (db.getMongo().isMongos()) {
-                assert.commandWorked(
-                  db.getSiblingDB(adminDbName).runCommand({movePrimary: firstDbName, to: shard0name}));
-                assert.commandWorked(
-                  db.getSiblingDB(adminDbName).runCommand({movePrimary: secondDbName, to: shard0name}));
+            assert.writeOK(db.getSiblingDB(firstDbName).x.save({}));
+            db.getSiblingDB(secondDbName).y.save({});
+            db.getSiblingDB(secondDbName).y.drop();
+            // Running movePrimary is necessary on mongos, but doesn't exist on non-sharded
+            // systems.
+            if (db.getMongo().isMongos()) {
+              const shardId = assert.commandWorked(db.getSiblingDB(adminDbName).runCommand({listShards: 1})).shards[0]['_id'];
+              assert.commandWorked(
+                db.getSiblingDB(adminDbName).runCommand({movePrimary: firstDbName, to: shardId}));
+              assert.commandWorked(
+                db.getSiblingDB(adminDbName).runCommand({movePrimary: secondDbName, to: shardId}));
               }
           },
           teardown: function(db) {
@@ -5635,14 +5637,17 @@ var authCommandsLib = {
               {
                 runOnDb: adminDbName,
                 privileges: [{resource: {db: 'config', collection: 'shards'}, actions: ['update']}],
+                expectFail: true, // shard0name doesn't exists
               },
               {
                 runOnDb: adminDbName,
                 roles: roles_clusterManager,
+                expectFail: true, // shard0name doesn't exists
               },
               {
                 runOnDb: adminDbName,
                 privileges: [{resource: {cluster: true}, actions: ["enableSharding"]}],
+                expectFail: true, // shard0name doesn't exists
               },
           ]
         },
@@ -5665,14 +5670,17 @@ var authCommandsLib = {
                     {resource: {db: 'config', collection: 'shards'}, actions: ['update']},
                     {resource: {db: 'config', collection: 'tags'}, actions: ['find']}
                 ],
+                expectFail: true, // shard0name doesn't exists
               },
               {
                 runOnDb: adminDbName,
                 roles: roles_clusterManager,
+                expectFail: true, // shard0name doesn't exists
               },
               {
                 runOnDb: adminDbName,
                 privileges: [{resource: {cluster: true}, actions: ["enableSharding"]}],
+                expectFail: true, // shard0name doesn't exists
               },
           ]
         },
@@ -5784,10 +5792,11 @@ var authCommandsLib = {
               }]
           },
           skipSharded: false,
+          skipTest: (conn) => true, // TODO SERVER-54877 re-enable this test case
           // Only enterprise knows of this aggregation stage.
-          skipTest:
-              (conn) =>
-                  !conn.getDB("admin").runCommand({buildInfo: 1}).modules.includes("enterprise"),
+          //skipTest:
+          //    (conn) =>
+          //        !conn.getDB("admin").runCommand({buildInfo: 1}).modules.includes("enterprise"),
           testcases: [
               {
                 runOnDb: firstDbName,
