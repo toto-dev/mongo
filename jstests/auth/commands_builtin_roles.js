@@ -168,11 +168,8 @@ conn = new ShardingTest({
     shards: 2,
     mongos: 1,
     keyFile: "jstests/libs/key1",
-    other: {
-        shardOptions: opts,
-        shardAsReplicaSet: false,
-        mongosOptions: {setParameter: "trafficRecordingDirectory=" + dbPath}
-    }
+    other:
+        {shardOptions: opts, mongosOptions: {setParameter: "trafficRecordingDirectory=" + dbPath}}
 });
 authCommandsLib.runTests(conn, impls);
 conn.stop();
