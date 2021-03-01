@@ -213,7 +213,7 @@ var authCommandsLib = {
           command: {
               _addShard: 1,
               shardIdentity: {
-                  shardName: "shard0000",
+                  shardName: shard0name,
                   clusterId: ObjectId('5b2031806195dffd744258ee'),
                   configsvrConnectionString: "foobarbaz/host:20022,host:20023,host:20024"
               }
