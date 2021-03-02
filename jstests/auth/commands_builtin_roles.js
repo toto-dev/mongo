@@ -163,7 +163,7 @@ MongoRunner.stopMongod(conn);
 
 // run all tests sharded
 conn = new ShardingTest({
-    shards: 2,
+    shards: 1,
     mongos: 1,
     config: 1,
     rs: {nodes: 1},
