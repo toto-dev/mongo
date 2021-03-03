@@ -223,8 +223,7 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                             "Error running drop collection",
                             "namespace"_attr = nss(),
                             "error"_attr = redact(status));
-                // TODO _moveToState(State::kError);
-                // TODO delete the state doc?
+                _removeStateDocument();
                 _completionPromise.setError(status);
                 return;
             }
