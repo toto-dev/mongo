@@ -5008,7 +5008,7 @@ var authCommandsLib = {
           command: {renameCollection: firstDbName + ".x", to: secondDbName + ".y"},
           setup: function(db) {
             assert.writeOK(db.getSiblingDB(firstDbName).x.save({}));
-            db.getSiblingDB(secondDbName).y.save({});
+            assert.writeOK(db.getSiblingDB(secondDbName).y.save({}));
             db.getSiblingDB(secondDbName).y.drop();
             // Running movePrimary is necessary on mongos, but doesn't exist on non-sharded
             // systems.
