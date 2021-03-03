@@ -190,12 +190,13 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
 
                 const auto primaryShardId = ShardingState::get(opCtx)->shardId();
                 const ShardsvrDropCollectionParticipant dropCollectionParticipant(nss());
-                sharding_util::sendCommandToShards(opCtx,
-                                                   nss().db(),
-                                                   CommandHelpers::appendMajorityWriteConcern(
-                                                       dropCollectionParticipant.toBSON({})),
-                                                   {primaryShardId},
-                                                   **executor);
+                sharding_ddl_util::sendAuthenticatedCommandToShards(
+                    opCtx,
+                    nss().db(),
+                    CommandHelpers::appendMajorityWriteConcern(
+                        dropCollectionParticipant.toBSON({})),
+                    {primaryShardId},
+                    **executor);
 
                 if (collIsSharded) {
                     auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
@@ -203,12 +204,13 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                     participants.erase(
                         std::remove(participants.begin(), participants.end(), primaryShardId),
                         participants.end());
-                    sharding_util::sendCommandToShards(opCtx,
-                                                       nss().db(),
-                                                       CommandHelpers::appendMajorityWriteConcern(
-                                                           dropCollectionParticipant.toBSON({})),
-                                                       participants,
-                                                       **executor);
+                    sharding_ddl_util::sendAuthenticatedCommandToShards(
+                        opCtx,
+                        nss().db(),
+                        CommandHelpers::appendMajorityWriteConcern(
+                            dropCollectionParticipant.toBSON({})),
+                        participants,
+                        **executor);
                 }
             }))
         .onCompletion([this, anchor = shared_from_this()](const Status& status) {
