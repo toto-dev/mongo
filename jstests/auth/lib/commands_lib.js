@@ -5637,17 +5637,17 @@ var authCommandsLib = {
               {
                 runOnDb: adminDbName,
                 privileges: [{resource: {db: 'config', collection: 'shards'}, actions: ['update']}],
-                expectFail: true, // shard0name doesn't exists
+                expectFail: true, // shard0name doesn't exist
               },
               {
                 runOnDb: adminDbName,
                 roles: roles_clusterManager,
-                expectFail: true, // shard0name doesn't exists
+                expectFail: true, // shard0name doesn't exist
               },
               {
                 runOnDb: adminDbName,
                 privileges: [{resource: {cluster: true}, actions: ["enableSharding"]}],
-                expectFail: true, // shard0name doesn't exists
+                expectFail: true, // shard0name doesn't exist
               },
           ]
         },
@@ -5670,17 +5670,17 @@ var authCommandsLib = {
                     {resource: {db: 'config', collection: 'shards'}, actions: ['update']},
                     {resource: {db: 'config', collection: 'tags'}, actions: ['find']}
                 ],
-                expectFail: true, // shard0name doesn't exists
+                expectFail: true, // shard0name doesn't exist
               },
               {
                 runOnDb: adminDbName,
                 roles: roles_clusterManager,
-                expectFail: true, // shard0name doesn't exists
+                expectFail: true, // shard0name doesn't exist
               },
               {
                 runOnDb: adminDbName,
                 privileges: [{resource: {cluster: true}, actions: ["enableSharding"]}],
-                expectFail: true, // shard0name doesn't exists
+                expectFail: true, // shard0name doesn't exist
               },
           ]
         },
