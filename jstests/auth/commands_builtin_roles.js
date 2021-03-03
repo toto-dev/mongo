@@ -166,7 +166,6 @@ conn = new ShardingTest({
     shards: 1,
     mongos: 1,
     config: 1,
-    rs: {nodes: 1},
     keyFile: "jstests/libs/key1",
     other:
         {shardOptions: opts, mongosOptions: {setParameter: "trafficRecordingDirectory=" + dbPath}}
