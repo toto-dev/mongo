@@ -54,7 +54,7 @@ DropCollectionCoordinator::~DropCollectionCoordinator() {
 }
 
 void DropCollectionCoordinator::interrupt(Status status) {
-    LOGV2_DEBUG(5390502,
+    LOGV2_DEBUG(5390505,
                 1,
                 "Drop collection coordinator received an interrupt",
                 "namespace"_attr = nss(),
