@@ -234,13 +234,15 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
             try {
                 _removeStateDocument();
             } catch (const DBException& ex) {
-                constexpr auto errMsg =
-                    "Failed to remove drop collection coordinator state document";
-                LOGV2_DEBUG(
-                    5390506, 1, errMsg, "namespace"_attr = nss(), "reason"_attr = redact(ex));
+                LOGV2_DEBUG(5390506,
+                            1,
+                            "Failed to remove drop collection coordinator state document",
+                            "namespace"_attr = nss(),
+                            "reason"_attr = redact(ex));
                 stdx::lock_guard<Latch> lg(_mutex);
                 if (!_completionPromise.getFuture().isReady()) {
-                    _completionPromise.setError(ex.toStatus(errMsg));
+                    _completionPromise.setError(
+                        ex.toStatus("Failed to remove drop collection coordinator state document"));
                 }
             }
 
