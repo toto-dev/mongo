@@ -106,7 +106,6 @@ ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx, BSON
         coordinator->checkIfOptionsConflict(coorDoc);
     }
 
-    coordinator->getConstructionCompletionFuture().get(opCtx);
     return coordinator;
 }
 

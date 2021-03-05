@@ -85,12 +85,15 @@ SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTas
             _constructionCompletionPromise.emplaceValue();
         })
         .onError([this, anchor = shared_from_this()](const Status& status) {
+            static constexpr auto errorMsg =
+                "Failed to complete construction of sharding DDL coordinator";
             LOGV2_ERROR(5390530,
-                        "Failed to complete construction of sharding DDL coordinator",
+                        errorMsg,
                         "coordinatorId"_attr = _coorMetadata.getId(),
                         "reason"_attr = redact(status));
-            _constructionCompletionPromise.setError(
-                status.withContext("Failed to complete construction of sharding DDL coordinator"));
+            const auto errorStatus = status.withContext(errorMsg);
+            _constructionCompletionPromise.setError(errorStatus);
+            interrupt(errorStatus);
             return status;
         })
         .then([this, executor, token, anchor = shared_from_this()] {

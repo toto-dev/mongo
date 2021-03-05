@@ -214,25 +214,40 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                 }
             }))
         .onCompletion([this, anchor = shared_from_this()](const Status& status) {
-            stdx::lock_guard<Latch> lk(_mutex);
-            if (_completionPromise.getFuture().isReady()) {
-                // interrupt() was called before we got here.
-                return;
+            {
+                stdx::lock_guard<Latch> lk(_mutex);
+                if (_completionPromise.getFuture().isReady()) {
+                    // interrupt() was called before we got here.
+                    return;
+                }
             }
 
-            if (!status.isOK()) {
+            if (status.isOK()) {
+                LOGV2_DEBUG(5390503, 1, "Collection dropped", "namespace"_attr = nss());
+            } else {
                 LOGV2_ERROR(5280901,
                             "Error running drop collection",
                             "namespace"_attr = nss(),
                             "error"_attr = redact(status));
-                _removeStateDocument();
-                _completionPromise.setError(status);
-                return;
             }
 
-            LOGV2_DEBUG(5390503, 1, "Collection dropped", "namespace"_attr = nss());
-            _removeStateDocument();
-            _completionPromise.emplaceValue();
+            try {
+                _removeStateDocument();
+            } catch (const DBException& ex) {
+                constexpr auto errMsg =
+                    "Failed to remove drop collection coordinator state document";
+                LOGV2_DEBUG(
+                    5390506, 1, errMsg, "namespace"_attr = nss(), "reason"_attr = redact(ex));
+                stdx::lock_guard<Latch> lg(_mutex);
+                if (!_completionPromise.getFuture().isReady()) {
+                    _completionPromise.setError(ex.toStatus(errMsg));
+                }
+            }
+
+            stdx::lock_guard<Latch> lg(_mutex);
+            if (!_completionPromise.getFuture().isReady()) {
+                _completionPromise.setFrom(status);
+            }
         });
 }
 
