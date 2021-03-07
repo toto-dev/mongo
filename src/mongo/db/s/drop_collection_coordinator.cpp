@@ -53,7 +53,7 @@ DropCollectionCoordinator::~DropCollectionCoordinator() {
     invariant(_completionPromise.getFuture().isReady());
 }
 
-void DropCollectionCoordinator::interrupt(Status status) {
+void DropCollectionCoordinator::_interruptImpl(Status status) {
     LOGV2_DEBUG(5390505,
                 1,
                 "Drop collection coordinator received an interrupt",
@@ -234,16 +234,8 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
             try {
                 _removeStateDocument();
             } catch (const DBException& ex) {
-                LOGV2_DEBUG(5390506,
-                            1,
-                            "Failed to remove drop collection coordinator state document",
-                            "namespace"_attr = nss(),
-                            "reason"_attr = redact(ex));
-                stdx::lock_guard<Latch> lg(_mutex);
-                if (!_completionPromise.getFuture().isReady()) {
-                    _completionPromise.setError(
-                        ex.toStatus("Failed to remove drop collection coordinator state document"));
-                }
+                _interruptImpl(
+                    ex.toStatus("Failed to remove drop collection coordinator state document"));
             }
 
             stdx::lock_guard<Latch> lg(_mutex);

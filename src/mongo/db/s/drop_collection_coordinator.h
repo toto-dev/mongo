@@ -45,8 +45,6 @@ public:
 
     void checkIfOptionsConflict(const BSONObj& doc) const;
 
-    void interrupt(Status status) override;
-
     boost::optional<BSONObj> reportForCurrentOp(
         MongoProcessInterface::CurrentOpConnectionsMode connMode,
         MongoProcessInterface::CurrentOpSessionsMode sessionMode) noexcept override;
@@ -62,6 +60,8 @@ public:
 private:
     ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
                                   const CancelationToken& token) noexcept override;
+
+    void _interruptImpl(Status status) override;
 
     template <typename Func>
     auto _transitionToState(const State& state, Func&& transitionFunc) {
