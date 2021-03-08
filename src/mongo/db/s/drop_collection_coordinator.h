@@ -31,7 +31,6 @@
 
 #include "mongo/db/s/drop_collection_coordinator_document_gen.h"
 #include "mongo/db/s/sharding_ddl_coordinator.h"
-#include "mongo/s/shard_id.h"
 
 namespace mongo {
 

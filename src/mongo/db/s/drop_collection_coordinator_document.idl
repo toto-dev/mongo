@@ -46,8 +46,7 @@ enums:
             kUninitialized: "uninitialized"
             kInitialized: "initialized"
             kCollectionFrozen: "collectionFrozen"
-            kDropped: "dropped"
-            kError: "error"
+            kCompleted: "completed"
 
 types:
     CollectionInfo:

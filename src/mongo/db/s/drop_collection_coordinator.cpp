@@ -165,7 +165,7 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                 }
             }))
         .then(_transitionToState(
-            State::kDropped,
+            State::kCompleted,
             [this, executor = executor, anchor = shared_from_this()] {
                 auto opCtxHolder = cc().makeOperationContext();
                 auto* opCtx = opCtxHolder.get();
