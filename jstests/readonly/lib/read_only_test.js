@@ -27,11 +27,7 @@ ShardedFixture = function() {
 };
 
 ShardedFixture.prototype.runLoadPhase = function runLoadPhase(test) {
-    // TODO: SERVER-43758 Tests where shards are started in read-only mode
-    // cannot use replica set shards, because replication requires doing writes
-    // to run an election.
-    this.shardingTest =
-        new ShardingTest({mongos: 1, shards: this.nShards, other: {shardAsReplicaSet: false}});
+    this.shardingTest = new ShardingTest({mongos: 1, shards: this.nShards});
 
     this.paths = this.shardingTest.getDBPaths();
 
@@ -52,7 +48,7 @@ ShardedFixture.prototype.runExecPhase = function runExecPhase(test) {
         // be set via config file.
 
         var shardIdentity =
-            this.shardingTest["d" + i].getDB("admin").getCollection("system.version").findOne({
+            this.shardingTest["shard" + i].getDB("admin").getCollection("system.version").findOne({
                 _id: "shardIdentity"
             });
         assert.neq(null, shardIdentity);
@@ -72,7 +68,7 @@ ShardedFixture.prototype.runExecPhase = function runExecPhase(test) {
         var opts =
             {config: configFilePath, queryableBackupMode: "", shardsvr: "", dbpath: this.paths[i]};
 
-        assert.commandWorked(this.shardingTest["d" + i].getDB("local").dropDatabase());
+        assert.commandWorked(this.shardingTest["shard" + i].getDB("local").dropDatabase());
         this.shardingTest.restartMongod(i, opts);
     }
 
