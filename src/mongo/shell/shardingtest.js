@@ -1002,7 +1002,7 @@ var ShardingTest = function(params) {
      */
     this.restartShardRS = function(n, options, signal, wait) {
         for (let i = 0; i < this["rs" + n].nodeList().length; i++) {
-            this["rs" + n].restart(i);
+            this["rs" + n].restart(i, options, signal, wait);
         }
 
         this["rs" + n].awaitSecondaryNodes();

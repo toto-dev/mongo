@@ -55,7 +55,7 @@ ShardedFixture.prototype.runExecPhase = function runExecPhase(test) {
                 _id: "shardIdentity"
             });
         assert.neq(null, shardIdentity);
-        jsTest.log("ShardIdentity: " + printjson(shardIdentity));
+        jsTest.log("ShardIdentity: " + tojson(shardIdentity));
 
         // Construct a string representation of the config file (replace all instances of
         // multiple consecutive whitespace characters in the string representation of the
@@ -65,18 +65,19 @@ ShardedFixture.prototype.runExecPhase = function runExecPhase(test) {
 
         jsTest.log("configFileStr: " + configFileStr);
 
+        const path = this.shardingTest["rs" + i].getDbPath(0);
+
         // Use the os-specific path delimiter.
         var delim = _isWindows() ? '\\' : '/';
-        var configFilePath = this.paths[i] + delim + "config-for-shard-" + i + ".yml";
+        var configFilePath = path + delim + "config-for-shard-" + i + ".yml";
 
-        jsTest.log("path: " + this.paths[i] + " configFilePath: " + configFilePath);
+        jsTest.log("path: " + path + " configFilePath: " + configFilePath);
         writeFile(configFilePath, configFileStr);
 
-        var opts =
-            {config: configFilePath, queryableBackupMode: "", shardsvr: "", dbpath: this.paths[i]};
+        var opts = {config: configFilePath, queryableBackupMode: "", shardsvr: "", dbpath: path};
 
-        assert.commandWorked(this.shardingTest["shard" + i].getDB("local").dropDatabase());
-        this.shardingTest.restartMongod(i, opts);
+        // assert.commandWorked(this.shardingTest["shard" + i].getDB("local").dropDatabase());
+        this.shardingTest.restartShardRS(i, opts);
     }
 
     jsTest.log("restarting mongos...");
