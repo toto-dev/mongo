@@ -43,7 +43,7 @@ ShardedFixture.prototype.runExecPhase = function runExecPhase(test) {
     jsTest.log("restarting shards...");
     this.shardingTest.printShardingStatus(true);
     for (var i = 0; i < this.nShards; ++i) {
-        jsTest.log("Interation " + i);
+        jsTest.log("XOXO Iteration " + i);
 
         // Write the shard's shardIdentity to a config file under
         // sharding._overrideShardIdentity, since the shardIdentity must be provided through
