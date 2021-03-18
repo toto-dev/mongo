@@ -41,7 +41,10 @@ ShardedFixture.prototype.runLoadPhase = function runLoadPhase(test) {
 
 ShardedFixture.prototype.runExecPhase = function runExecPhase(test) {
     jsTest.log("restarting shards...");
+    this.shardingTest.printShardingStatus(true);
     for (var i = 0; i < this.nShards; ++i) {
+        jsTest.log("Interation " + i);
+
         // Write the shard's shardIdentity to a config file under
         // sharding._overrideShardIdentity, since the shardIdentity must be provided through
         // overrideShardIdentity when running in queryableBackupMode, and is only allowed to
@@ -52,6 +55,7 @@ ShardedFixture.prototype.runExecPhase = function runExecPhase(test) {
                 _id: "shardIdentity"
             });
         assert.neq(null, shardIdentity);
+        jsTest.log("ShardIdentity: " + printjson(shardIdentity));
 
         // Construct a string representation of the config file (replace all instances of
         // multiple consecutive whitespace characters in the string representation of the
@@ -59,10 +63,13 @@ ShardedFixture.prototype.runExecPhase = function runExecPhase(test) {
         var configFileStr = "sharding:\n  _overrideShardIdentity: '" +
             tojson(shardIdentity).replace(/\s+/g, ' ') + "'";
 
+        jsTest.log("configFileStr: " + configFileStr);
+
         // Use the os-specific path delimiter.
         var delim = _isWindows() ? '\\' : '/';
         var configFilePath = this.paths[i] + delim + "config-for-shard-" + i + ".yml";
 
+        jsTest.log("path: " + this.paths[i] + " configFilePath: " + configFilePath);
         writeFile(configFilePath, configFileStr);
 
         var opts =
