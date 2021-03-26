@@ -50,6 +50,7 @@ ShardingDDLCoordinator::ShardingDDLCoordinator(const BSONObj& coorDoc)
     : _coorMetadata(extractShardingDDLCoordinatorMetadata(coorDoc)) {}
 
 ShardingDDLCoordinator::~ShardingDDLCoordinator() {
+    logd("XOXO ~ShardingDDLCoordinator");
     invariant(_constructionCompletionPromise.getFuture().isReady());
     invariant(_completionPromise.getFuture().isReady());
 }
@@ -57,7 +58,7 @@ ShardingDDLCoordinator::~ShardingDDLCoordinator() {
 void ShardingDDLCoordinator::interrupt(Status status) {
     LOGV2_DEBUG(5390535,
                 1,
-                "Sharding DDL Coordinator received an interrupt",
+                "XOXO Sharding DDL Coordinator received an interrupt",
                 "coordinatorId"_attr = _coorMetadata.getId(),
                 "reason"_attr = redact(status));
     _interruptImpl(status);
@@ -120,6 +121,7 @@ SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTas
             return _runImpl(executor, token);
         })
         .onCompletion([this, anchor = shared_from_this()](const Status& status) {
+            logd("XOXO onCompletion before lock release");
             auto opCtxHolder = cc().makeOperationContext();
             auto* opCtx = opCtxHolder.get();
 

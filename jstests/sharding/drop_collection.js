@@ -63,217 +63,24 @@ function assertCollectionDropped(ns, uuid = null) {
 
 jsTest.log("Drop unsharded collection.");
 {
-    const db = getNewDb();
+    const db = st.s.getDB('asd');
     const coll = db['unshardedColl0'];
+
     // Create the collection
     assert.commandWorked(coll.insert({x: 1}));
     assert.eq(1, coll.countDocuments({x: 1}));
     // Drop the collection
-    assert.commandWorked(db.runCommand({drop: coll.getName()}));
+    let awaitShell = startParallelShell(() => {
+        assert.commandWorked(db.getSiblingDB("asd").runCommand({drop: "unshardedColl0"}));
+    }, st.s.port);
+
+    jsTest.log("XOXO waiting for the drop to hang");
+    sleep(7000);
+    jsTest.log("XOXO Stepping down rs0");
+    assert.commandWorked(st.rs0.getPrimary().adminCommand({replSetStepDown: 60, force: 1}));
+    jsTest.log("XOXO Stepping down rs1");
+    assert.commandWorked(st.rs1.getPrimary().adminCommand({replSetStepDown: 60, force: 1}));
     assertCollectionDropped(coll.getFullName());
-}
-
-jsTest.log("Drop unsharded collection also remove tags.");
-{
-    const db = getNewDb();
-    const coll = db['unshardedColl1'];
-    // Create the database
-    assert.commandWorked(st.s.adminCommand({enableSharding: db.getName()}));
-    // Add a zone
-    assert.commandWorked(st.s.adminCommand({addShardToZone: st.shard1.shardName, zone: 'zone1'}));
-    assert.commandWorked(st.s.adminCommand(
-        {updateZoneKeyRange: coll.getFullName(), min: {x: 0}, max: {x: 10}, zone: 'zone1'}));
-    assert.eq(1, configDB.tags.countDocuments({ns: coll.getFullName()}));
-    // Create the collection
-    assert.commandWorked(coll.insert({x: 1}));
-    // Drop the collection
-    assert.commandWorked(db.runCommand({drop: coll.getName()}));
-    assertCollectionDropped(coll.getFullName());
-}
-jsTest.log("Drop sharded collection repeated.");
-{
-    const db = getNewDb();
-    const coll = db['unshardedColl0'];
-    // Create the database
-    assert.commandWorked(st.s.adminCommand({enableSharding: db.getName()}));
-    for (var i = 0; i < 3; i++) {
-        // Create the collection
-        assert.commandWorked(st.s.adminCommand({shardCollection: coll.getFullName(), key: {x: 1}}));
-        assert.commandWorked(coll.insert({x: 123}));
-        assert.eq(1, coll.countDocuments({x: 123}));
-        // Drop the collection
-        assert.commandWorked(db.runCommand({drop: coll.getName()}));
-        assertCollectionDropped(coll.getFullName());
-    }
-}
-
-jsTest.log("Drop unexistent collections also remove tags.");
-{
-    const db = getNewDb();
-    const coll = db['unexistent'];
-    // Create the database
-    assert.commandWorked(st.s.adminCommand({enableSharding: db.getName()}));
-    // Add a zone
-    assert.commandWorked(st.s.adminCommand({addShardToZone: st.shard1.shardName, zone: 'zone1'}));
-    assert.commandWorked(st.s.adminCommand(
-        {updateZoneKeyRange: coll.getFullName(), min: {x: -1}, max: {x: 1}, zone: 'zone1'}));
-    assert.eq(1, configDB.tags.countDocuments({ns: coll.getFullName()}));
-    // Drop the collection
-    assert.commandWorked(db.runCommand({drop: coll.getName()}));
-    assertCollectionDropped(coll.getFullName());
-}
-
-jsTest.log("Drop a sharded collection.");
-{
-    const db = getNewDb();
-    const coll = db['shardedColl1'];
-
-    assert.commandWorked(
-        st.s.adminCommand({enableSharding: db.getName(), primaryShard: st.shard0.shardName}));
-    assert.commandWorked(st.s.adminCommand({shardCollection: coll.getFullName(), key: {_id: 1}}));
-    // Spread chunks on all the shards
-    assert.commandWorked(st.s.adminCommand({split: coll.getFullName(), middle: {_id: 0}}));
-    assert.commandWorked(st.s.adminCommand(
-        {moveChunk: coll.getFullName(), find: {_id: 0}, to: st.shard1.shardName}));
-    // Insert two documents
-    assert.commandWorked(coll.insert({_id: 10}));
-    assert.commandWorked(coll.insert({_id: -10}));
-
-    // Check that data is in place
-    assert.eq(2, coll.countDocuments({}));
-    assert.eq(1, configDB.collections.countDocuments({_id: coll.getFullName()}));
-
-    // Drop the collection
-    const uuid = getCollectionUUID(coll.getFullName());
-    assert.commandWorked(db.runCommand({drop: coll.getName()}));
-    assertCollectionDropped(coll.getFullName(), uuid);
-
-    // Call drop again to verify that the command is idempotent.
-    assert.commandWorked(db.runCommand({drop: coll.getName()}));
-}
-
-jsTest.log("Drop a sharded collection with zones.");
-{
-    const db = getNewDb();
-    const coll = db['shardedColl2'];
-
-    assert.commandWorked(
-        st.s.adminCommand({enableSharding: db.getName(), primaryShard: st.shard0.shardName}));
-    assert.commandWorked(st.s.adminCommand({shardCollection: coll.getFullName(), key: {_id: 1}}));
-    // Spread chunks on all the shards
-    assert.commandWorked(st.s.adminCommand({split: coll.getFullName(), middle: {_id: 0}}));
-    assert.commandWorked(st.s.adminCommand(
-        {moveChunk: coll.getFullName(), find: {_id: 0}, to: st.shard1.shardName}));
-    // Add tags
-    assert.commandWorked(st.s.adminCommand({addShardToZone: st.shard1.shardName, zone: 'foo'}));
-    assert.commandWorked(st.s.adminCommand(
-        {updateZoneKeyRange: coll.getFullName(), min: {_id: 0}, max: {_id: 10}, zone: 'foo'}));
-
-    assert.commandWorked(coll.insert({_id: -10}));
-    assert.commandWorked(coll.insert({_id: 10}));
-
-    // Checks that data and metadata are in place
-    assert.eq(1, configDB.tags.countDocuments({ns: coll.getFullName()}));
-    assert.eq(2, coll.countDocuments({}));
-    assert.eq(2, findChunksUtil.countChunksForNs(configDB, coll.getFullName()));
-    assert.neq(null, st.shard0.getCollection(coll.getFullName()).findOne({_id: -10}));
-    assert.neq(null, st.shard1.getCollection(coll.getFullName()).findOne({_id: 10}));
-
-    // Drop the collection
-    const uuid = getCollectionUUID(coll.getFullName());
-    assert.commandWorked(db.runCommand({drop: coll.getName()}));
-    assertCollectionDropped(coll.getFullName(), uuid);
-
-    // Call drop again to verify that the command is idempotent.
-    assert.commandWorked(db.runCommand({drop: coll.getName()}));
-}
-
-jsTest.log("Move primary with drop and recreate - new primary no chunks.");
-/*
- * Test that moving database primary works after dropping and recreating the same sharded
- * collection.
- * The new primary never owned a chunk of the sharded collection.
- */
-{
-    const db = getNewDb();
-    const coll = db['movePrimaryNoChunks'];
-
-    jsTest.log("Create sharded collection with on chunk on shad 0");
-    assert.commandWorked(
-        st.s.adminCommand({enableSharding: db.getName(), primaryShard: st.shard0.shardName}));
-    st.shardColl(coll, {skey: 1}, false, false);
-
-    jsTest.log("Move database primary back and forth shard 1");
-    st.ensurePrimaryShard(db.getName(), st.shard1.shardName);
-    st.ensurePrimaryShard(db.getName(), st.shard0.shardName);
-
-    jsTest.log("Drop sharded collection");
-    var uuid = getCollectionUUID(coll.getFullName());
-    coll.drop();
-    assertCollectionDropped(coll.getFullName(), uuid);
-
-    jsTest.log("Re-Create sharded collection on shard 0");
-    st.shardColl(coll, {skey: 1}, false, false);
-
-    jsTest.log("Move database primary to shard 1");
-    st.ensurePrimaryShard(db.getName(), st.shard1.shardName);
-
-    jsTest.log("Drop sharded collection");
-    uuid = getCollectionUUID(coll.getFullName());
-    coll.drop();
-    assertCollectionDropped(coll.getFullName(), uuid);
-}
-
-jsTest.log("Move primary with drop and recreate - new primary own chunks.");
-/*
- * Test that moving database primary works after dropping and recreating the same sharded
- * collection.
- * The new primary previously owned a chunk of the original collection.
- */
-{
-    const db = getNewDb();
-    const coll = db['movePrimaryWithChunks'];
-
-    assert.commandWorked(st.s.adminCommand({enableSharding: db.getName()}));
-
-    jsTest.log("Create sharded collection with two chunks on each shard");
-    st.ensurePrimaryShard(db.getName(), st.shard0.shardName);
-    st.shardColl(coll, {skey: 1}, {skey: 0}, {skey: 0});
-
-    assert.eq(1,
-              findChunksUtil.countChunksForNs(
-                  configDB, coll.getFullName(), {shard: st.shard0.shardName}));
-    assert.eq(1,
-              findChunksUtil.countChunksForNs(
-                  configDB, coll.getFullName(), {shard: st.shard1.shardName}));
-    jsTest.log("Move all chunks to shard 0");
-    assert.commandWorked(st.s.adminCommand({
-        moveChunk: coll.getFullName(),
-        find: {skey: 10},
-        to: st.shard0.shardName,
-        _waitForDelete: true
-    }));
-    assert.eq(2,
-              findChunksUtil.countChunksForNs(
-                  configDB, coll.getFullName(), {shard: st.shard0.shardName}));
-    assert.eq(0,
-              findChunksUtil.countChunksForNs(
-                  configDB, coll.getFullName(), {shard: st.shard1.shardName}));
-
-    jsTest.log("Drop sharded collection");
-    coll.drop();
-
-    jsTest.log("Re-Create sharded collection with one chunk on shard 0");
-    st.shardColl(coll, {skey: 1}, false, false);
-    assert.eq(1,
-              findChunksUtil.countChunksForNs(
-                  configDB, coll.getFullName(), {shard: st.shard0.shardName}));
-
-    jsTest.log("Move primary of DB to shard 1");
-    st.ensurePrimaryShard(db.getName(), st.shard1.shardName);
-
-    jsTest.log("Drop sharded collection");
-    coll.drop();
 }
 
 st.stop();

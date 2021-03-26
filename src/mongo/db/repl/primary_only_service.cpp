@@ -380,12 +380,15 @@ void PrimaryOnlyService::onStepUp(const OpTime& stepUpOpTime) {
 }
 
 void PrimaryOnlyService::_interruptInstances(WithLock, Status status) {
+    logd("XOXO cancel _source");
     _source.cancel();
 
+    logd("XOXO shutdown exectuor");
     if (_scopedExecutor) {
         (*_scopedExecutor)->shutdown();
     }
-
+    logd("XOXO sleeping before interrupt");
+    mongo::sleepsecs(3);
     for (auto& [instanceId, instance] : _activeInstances) {
         instance.interrupt(status);
     }
@@ -397,6 +400,7 @@ void PrimaryOnlyService::_interruptInstances(WithLock, Status status) {
 }
 
 void PrimaryOnlyService::onStepDown() {
+    logd("XOXO PrimaryOnlyService::onStepDown");
     stdx::lock_guard lk(_mutex);
     if (_state == State::kShutdown) {
         return;
@@ -419,6 +423,7 @@ void PrimaryOnlyService::onStepDown() {
 }
 
 void PrimaryOnlyService::shutdown() {
+    logd("XOXO PrimaryOnlyService::shutdown");
     SimpleBSONObjUnorderedMap<ActiveInstance> savedInstances;
     std::shared_ptr<executor::TaskExecutor> savedExecutor;
     std::shared_ptr<executor::ScopedTaskExecutor> savedScopedExecutor;

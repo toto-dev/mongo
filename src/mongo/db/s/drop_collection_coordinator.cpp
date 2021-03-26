@@ -220,6 +220,8 @@ ExecutorFuture<void> DropCollectionCoordinator::_runImpl(
                 ex.addContext("Failed to remove drop collection coordinator state document"_sd);
                 throw;
             }
+            logd("XOXO dropCollectionCoordinator sleeping");
+            mongo::sleepsecs(40);
 
             uassertStatusOK(status);
         });
