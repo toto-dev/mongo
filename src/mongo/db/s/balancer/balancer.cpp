@@ -362,13 +362,13 @@ void Balancer::_mainThread() {
         break;
     }
 
-    LOGV2(21857, "CSRS balancer thread is recovering");
+    LOGV2(21857, "XOXO CSRS balancer thread is recovering");
 
     _migrationManager.finishRecovery(opCtx.get(),
                                      balancerConfig->getMaxChunkSizeBytes(),
                                      balancerConfig->getSecondaryThrottle());
 
-    LOGV2(21858, "CSRS balancer thread is recovered");
+    LOGV2(21858, "XOXO CSRS balancer thread is recovered");
 
     // Main balancer loop
     while (!_stopRequested()) {

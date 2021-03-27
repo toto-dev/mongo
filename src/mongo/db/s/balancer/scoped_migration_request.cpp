@@ -205,10 +205,10 @@ void ScopedMigrationRequest::keepDocumentOnDestruct() {
     invariant(_opCtx);
     _opCtx = nullptr;
     LOGV2_DEBUG(21902,
-                1,
-                "Keeping config.migrations document with namespace {namespace} and minKey "
+                0,
+                "XOXO Keeping config.migrations document with namespace {namespace} and minKey "
                 "{minKey} for balancer recovery",
-                "Keeping config.migrations document for balancer recovery",
+                "XOXO Keeping config.migrations document for balancer recovery",
                 "namespace"_attr = _nss,
                 "minKey"_attr = _minKey);
 }

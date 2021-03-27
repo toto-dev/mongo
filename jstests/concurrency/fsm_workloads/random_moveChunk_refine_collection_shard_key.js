@@ -12,7 +12,7 @@ load('jstests/concurrency/fsm_workloads/random_moveChunk_base.js');
 
 var $config = extendWorkload($config, function($config, $super) {
     $config.threadCount = 5;
-    $config.iterations = 50;
+    $config.iterations = 200;
 
     // Number of documents per partition. Note that there is one chunk per partition and one
     // partition per thread.

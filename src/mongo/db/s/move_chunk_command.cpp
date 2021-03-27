@@ -128,6 +128,10 @@ public:
         auto shardingState = ShardingState::get(opCtx);
         uassertStatusOK(shardingState->canAcceptShardedCommands());
 
+        logd("XOXO sleeping on moveChunk request {}", cmdObj);
+        mongo::sleepsecs(20);
+        logd("XOXO weaking up on moveChunk request {}", cmdObj);
+
         const MoveChunkRequest moveChunkRequest = uassertStatusOK(
             MoveChunkRequest::createFromCommand(NamespaceString(parseNs(dbname, cmdObj)), cmdObj));
 

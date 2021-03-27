@@ -325,6 +325,12 @@ void MigrationManager::finishRecovery(OperationContext* opCtx,
     vector<ScopedMigrationRequest> scopedMigrationRequests;
     vector<shared_ptr<Notification<RemoteCommandResponse>>> responses;
 
+    if (!_migrationRecoveryMap.empty()) {
+        logd("XOXO sleeping in recovery");
+        mongo::sleepsecs(7);
+        logd("XOXO weaking up");
+    }
+
     for (auto& nssAndMigrateInfos : _migrationRecoveryMap) {
         auto& nss = nssAndMigrateInfos.first;
         auto& migrateInfos = nssAndMigrateInfos.second;
@@ -355,15 +361,21 @@ void MigrationManager::finishRecovery(OperationContext* opCtx,
             auto waitForDelete = migrationType.getWaitForDelete();
             migrateInfos.pop_front();
 
-            const auto chunk = cm.findIntersectingChunkWithSimpleCollation(migrationInfo.minKey);
+            try {
+                const auto chunk =
+                    cm.findIntersectingChunkWithSimpleCollation(migrationInfo.minKey);
 
-            if (chunk.getShardId() != migrationInfo.from) {
-                // Chunk is no longer on the source shard specified by this migration. Erase the
-                // migration recovery document associated with it.
-                ScopedMigrationRequest::createForRecovery(opCtx, nss, migrationInfo.minKey);
-                continue;
+                if (chunk.getShardId() != migrationInfo.from) {
+                    // Chunk is no longer on the source shard specified by this migration. Erase the
+                    // migration recovery document associated with it.
+                    ScopedMigrationRequest::createForRecovery(opCtx, nss, migrationInfo.minKey);
+                    continue;
+                }
+
+            } catch (const DBException& ex) {
+                logd("XOXO cought exception {}", ex);
+                invariant(false);
             }
-
             scopedMigrationRequests.emplace_back(
                 ScopedMigrationRequest::createForRecovery(opCtx, nss, migrationInfo.minKey));
 
@@ -698,6 +710,7 @@ Status MigrationManager::_processRemoteCommandResponse(
     // fail when the balancer recovers and takes distlocks for migration recovery.
     Status status = scopedMigrationRequest->tryToRemoveMigration();
     if (!status.isOK()) {
+        logd("XOXO failed to remove migration document: {}", status);
         commandStatus = {
             ErrorCodes::BalancerInterrupted,
             stream() << "Migration interrupted because the balancer is stopping"
