@@ -22,25 +22,29 @@ var $config = (function() {
 
         function create(db, collName) {
             const nss = db.getName() + '.' + this.collName;
-            assertAlways.commandWorked(db.adminCommand({shardCollection: nss, key: {_id: 1}}));
+            jsTest.log("XOXO shardCollection START");
+            assert.commandWorked(db.adminCommand({shardCollection: nss, key: {_id: 1}}));
+            jsTest.log("XOXO shardCollection END");
         }
 
         function drop(db, collName) {
-            assertAlways.commandWorked(db.runCommand({drop: this.collName}));
+            jsTest.log("XOXO dropCollection START");
+            assert.commandWorked(db.runCommand({drop: this.collName}));
+            jsTest.log("XOXO dropCollection END");
         }
 
         return {init: init, create: create, drop: drop};
     })();
 
     var transitions = {
-        init: {create: 0.5, drop: 0.5},
+        init: {create: 1},
         create: {create: 0.5, drop: 0.5},
         drop: {create: 0.5, drop: 0.5}
     };
 
     return {
         threadCount: 1,
-        iterations: 100,
+        iterations: 60,
         startState: 'init',
         data: data,
         states: states,
