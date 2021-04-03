@@ -203,7 +203,7 @@ executor:
           useStepdownPermittedFile: true
   hooks:
   - class: ContinuousStepdown
-    config_stepdown: true
+    config_stepdown: false
     shard_stepdown: true
     use_stepdown_permitted_file: true
     wait_for_mongos_retarget: true
