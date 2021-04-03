@@ -109,7 +109,7 @@ SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTas
             logd("XOXO running for {} on {}", coorName, nss());
             if (_coorMetadata.getRecoveredFromDisk()) {
                 logd("XOXO ------------ sleeping after recovery {} on {}", coorName, nss());
-                mongo::sleepsecs(10);
+                mongo::sleepsecs(2);
                 logd("XOXO ------------ weaking up after recovery {} on {}", coorName, nss());
             }
 
