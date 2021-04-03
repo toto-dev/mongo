@@ -182,14 +182,19 @@ SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTas
                 }
             }();
 
+            logd("XOXO releasing locks");
+
             while (!_scopedLocks.empty()) {
                 _scopedLocks.top().assignNewOpCtx(opCtx);
                 _scopedLocks.pop();
             }
 
+            logd("XOXO setting completion future");
+
             stdx::lock_guard<Latch> lg(_mutex);
             if (!_completionPromise.getFuture().isReady()) {
                 _completionPromise.setFrom(completionStatus);
+                logd("XOXO completionfuture set to {}", completionStatus);
             }
 
             return completionStatus;

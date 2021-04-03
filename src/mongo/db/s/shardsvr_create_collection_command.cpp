@@ -191,7 +191,14 @@ CreateCollectionResponse createCollection(OperationContext* opCtx,
     auto service = ShardingDDLCoordinatorService::getService(opCtx);
     auto createCollectionCoordinator = checked_pointer_cast<CreateCollectionCoordinator>(
         service->getOrCreateInstance(opCtx, coordinatorDoc.toBSON()));
-    return createCollectionCoordinator->getResult(opCtx);
+    try {
+        logd("XOXO createCollection -- waiting for result");
+        ON_BLOCK_EXIT([] { logd("XOXO createCollection -- received result"); });
+        return createCollectionCoordinator->getResult(opCtx);
+    } catch (const DBException& ex) {
+        logd("XOXO createCollection -- error {}", ex);
+        throw;
+    }
 }
 
 class ShardsvrCreateCollectionCommand final : public TypedCommand<ShardsvrCreateCollectionCommand> {
