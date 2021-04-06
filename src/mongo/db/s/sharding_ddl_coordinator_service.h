@@ -31,6 +31,7 @@
 
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/repl/primary_only_service.h"
+#include "mongo/db/s/sharding_ddl_coordinator.h"
 
 namespace mongo {
 
@@ -60,6 +61,19 @@ public:
     std::shared_ptr<Instance> constructInstance(BSONObj initialState) override;
 
     std::shared_ptr<Instance> getOrCreateInstance(OperationContext* opCtx, BSONObj initialState);
+
+private:
+    std::shared_ptr<ShardingDDLCoordinator> _constructCoordinator(BSONObj initialState) const;
+
+    ExecutorFuture<void> _rebuildService(std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                                         const CancellationToken& token) override;
+
+    void _afterStepDown();
+
+    mutable Mutex _mutex = MONGO_MAKE_LATCH("ShardingDDLCoordinatorService::_mutex");
+    stdx::condition_variable _recoveredCV;
+    bool _recovered{false};
+    size_t _coordinatorsToWait{0};
 };
 
 }  // namespace mongo

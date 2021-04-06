@@ -404,6 +404,11 @@ private:
     };
 
     /**
+     * Called at the end of the service stepdown procedure.
+     */
+    virtual void _afterStepDown() {}
+
+    /**
      * Called as part of onStepUp.  Queries the state document collection for this
      * PrimaryOnlyService, constructs Instance objects for each document found, and schedules work
      * to run all the newly recreated Instances.
