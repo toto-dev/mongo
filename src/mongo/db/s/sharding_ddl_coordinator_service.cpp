@@ -53,7 +53,7 @@ ShardingDDLCoordinatorService* ShardingDDLCoordinatorService::getService(Operati
 }
 
 std::shared_ptr<ShardingDDLCoordinatorService::Instance>
-ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) const {
+ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) {
     const auto op = extractShardingDDLCoordinatorMetadata(initialState);
     LOGV2(
         5390510, "Constructing new sharding DDL coordinator", "coordinatorDoc"_attr = op.toBSON());

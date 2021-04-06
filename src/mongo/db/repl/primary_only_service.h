@@ -299,7 +299,7 @@ protected:
     /**
      * Constructs a new Instance object with the given initial state.
      */
-    virtual std::shared_ptr<Instance> constructInstance(BSONObj initialState) const = 0;
+    virtual std::shared_ptr<Instance> constructInstance(BSONObj initialState) = 0;
 
     /**
      * Given an InstanceId returns the corresponding running Instance object, or boost::none if

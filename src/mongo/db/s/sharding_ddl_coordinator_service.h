@@ -57,7 +57,7 @@ public:
         return ThreadPool::Limits();
     }
 
-    std::shared_ptr<Instance> constructInstance(BSONObj initialState) const override;
+    std::shared_ptr<Instance> constructInstance(BSONObj initialState) override;
 
     std::shared_ptr<Instance> getOrCreateInstance(OperationContext* opCtx, BSONObj initialState);
 };
