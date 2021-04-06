@@ -100,7 +100,9 @@ public:
         shardsvrCollRequest.setCreateCollectionRequest(requestParamsObj);
         shardsvrCollRequest.setDbName(nss.db());
 
+        logd("XOXO cluster create collection START");
         cluster::createCollection(opCtx, shardsvrCollRequest);
+        logd("XOXO cluster create collection END");
 
         // Add only collectionsharded as a response parameter and remove the version to maintain the
         // same format as before.

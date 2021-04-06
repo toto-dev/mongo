@@ -78,9 +78,21 @@ void ShardingDDLCoordinator::interrupt(Status status) {
     // Resolve any unresolved promises to avoid hanging.
     stdx::lock_guard<Latch> lg(_mutex);
     if (!_constructionCompletionPromise.getFuture().isReady()) {
+        // TODO remove this
+        LOGV2_DEBUG(5390536,
+                    1,
+                    "XOXO setting constructionCompletion promise",
+                    "coordinatorId"_attr = _coorMetadata.getId(),
+                    "reason"_attr = redact(status));
         _constructionCompletionPromise.setError(status);
     }
     if (!_completionPromise.getFuture().isReady()) {
+        // TODO remove this
+        LOGV2_DEBUG(5390537,
+                    1,
+                    "XOXO setting completion promise",
+                    "coordinatorId"_attr = _coorMetadata.getId(),
+                    "reason"_attr = redact(status));
         _completionPromise.setError(status);
     }
 }
@@ -94,6 +106,7 @@ SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTas
             auto* opCtx = opCtxHolder.get();
             const auto coorName =
                 DDLCoordinatorType_serializer(_coorMetadata.getId().getOperationType());
+            logd("XOXO running for {} on {}", coorName, nss());
 
             auto distLockManager = DistLockManager::get(opCtx);
             auto dbDistLock = uassertStatusOK(distLockManager->lock(
@@ -164,14 +177,19 @@ SemiFuture<void> ShardingDDLCoordinator::run(std::shared_ptr<executor::ScopedTas
                 }
             }();
 
+            logd("XOXO releasing locks");
+
             while (!_scopedLocks.empty()) {
                 _scopedLocks.top().assignNewOpCtx(opCtx);
                 _scopedLocks.pop();
             }
 
+            logd("XOXO setting completion future");
+
             stdx::lock_guard<Latch> lg(_mutex);
             if (!_completionPromise.getFuture().isReady()) {
                 _completionPromise.setFrom(completionStatus);
+                logd("XOXO completionfuture set to {}", completionStatus);
             }
 
             return completionStatus;
