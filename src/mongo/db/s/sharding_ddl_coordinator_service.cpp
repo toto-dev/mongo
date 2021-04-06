@@ -89,7 +89,9 @@ ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) {
                 return;
             }
             invariant(_coordinatorsToWait > 0);
+            logd("XOXO _coordinatorsToWait: {}", _coordinatorsToWait - 1);
             if (--_coordinatorsToWait == 0) {
+                logd("XOXO coordinators recovery completed");
                 _recovered = true;
                 _recoveredCV.notify_all();
             };
@@ -98,6 +100,7 @@ ShardingDDLCoordinatorService::constructInstance(BSONObj initialState) {
 }
 
 void ShardingDDLCoordinatorService::_afterStepDown() {
+    logd("XOXO _afterStepDown set recovered to false");
     stdx::lock_guard<Latch> lg(_mutex);
     _recovered = false;
     _coordinatorsToWait = 0;
@@ -113,8 +116,10 @@ ExecutorFuture<void> ShardingDDLCoordinatorService::_rebuildService(
             auto cursor = client.query(getStateDocumentsNS(), Query());
             const auto numCoordinators = cursor->itcount();
             stdx::lock_guard<Latch> lg(_mutex);
+            logd("XOXO found {} coordinators to recover", numCoordinators);
             _coordinatorsToWait = numCoordinators;
             if (!_coordinatorsToWait) {
+                logd("XOXO _rebuild service completed set _recovered to true");
                 _recovered = true;
                 _recoveredCV.notify_all();
             }
@@ -129,11 +134,13 @@ ExecutorFuture<void> ShardingDDLCoordinatorService::_rebuildService(
 std::shared_ptr<ShardingDDLCoordinatorService::Instance>
 ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx, BSONObj coorDoc) {
 
+    logd("XOXO ShardingDDLCoordinatorService::getOrCreateInstance <---> waiting for recovery");
     {
         // Wait for all coordinators to be recovered before to allow the creation of new ones.
         stdx::unique_lock lk(_mutex);
         opCtx->waitForConditionOrInterrupt(_recoveredCV, lk, [this]() { return _recovered; });
     }
+    logd("XOXO ShardingDDLCoordinatorService::getOrCreateInstance <---> finished waiting recovery");
 
     auto coorMetadata = extractShardingDDLCoordinatorMetadata(coorDoc);
     const auto& nss = coorMetadata.getId().getNss();
