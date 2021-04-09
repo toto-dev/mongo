@@ -183,17 +183,19 @@ CreateCollectionResponse createCollection(OperationContext* opCtx,
     auto coordinatorDoc = CreateCollectionCoordinatorDocument();
     coordinatorDoc.setShardingDDLCoordinatorMetadata(
         {{nss, DDLCoordinatorTypeEnum::kCreateCollection}});
-    coordinatorDoc.setShardKey(request.getShardKey());
+    CreateCollectionRequest requestParamsObj;
+    requestParamsObj.setShardKey(request.getShardKey());
     if (request.getCollation())
-        coordinatorDoc.setCollation(request.getCollation());
+        requestParamsObj.setCollation(request.getCollation());
     if (request.getInitialSplitPoints())
-        coordinatorDoc.setInitialSplitPoints(request.getInitialSplitPoints());
+        requestParamsObj.setInitialSplitPoints(request.getInitialSplitPoints());
     if (request.getNumInitialChunks())
-        coordinatorDoc.setNumInitialChunks(request.getNumInitialChunks());
+        requestParamsObj.setNumInitialChunks(request.getNumInitialChunks());
     if (request.getPresplitHashedZones())
-        coordinatorDoc.setPresplitHashedZones(request.getPresplitHashedZones());
+        requestParamsObj.setPresplitHashedZones(request.getPresplitHashedZones());
     if (request.getUnique())
-        coordinatorDoc.setUnique(request.getUnique());
+        requestParamsObj.setUnique(request.getUnique());
+    coordinatorDoc.setCreateCollectionRequest(std::move(requestParamsObj));
 
     auto service = ShardingDDLCoordinatorService::getService(opCtx);
     auto createCollectionCoordinator = checked_pointer_cast<CreateCollectionCoordinator>(

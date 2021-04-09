@@ -122,7 +122,16 @@ private:
      */
     void _finalize(OperationContext* opCtx) noexcept;
 
+    /**
+     * Executes _commit with an exponential backoff and retries if the commit failed due to a
+     * stepdown error.
+     */
+    ExecutorFuture<void> _commitWithRetries(std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                                            const CancellationToken& token);
+
     CreateCollectionCoordinatorDocument _doc;
+    bool _critSecTaken;
+    const BSONObj _critSecReason;
 
     // Objects generated on each execution.
     boost::optional<ShardKeyPattern> _shardKeyPattern;
