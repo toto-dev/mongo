@@ -159,10 +159,12 @@ void CollectionShardingRuntime::checkShardVersionOrThrow(OperationContext* opCtx
 }
 
 void CollectionShardingRuntime::enterCriticalSectionCatchUpPhase(const CSRLock&) {
+    LOGV2_DEBUG(0, 2, "Entering critical section (catchup phase)", "namespace"_attr = _nss);
     _critSec.enterCriticalSectionCatchUpPhase();
 }
 
 void CollectionShardingRuntime::enterCriticalSectionCommitPhase(const CSRLock&) {
+    LOGV2_DEBUG(0, 2, "Entering critical section (commit phase)", "namespace"_attr = _nss);
     _critSec.enterCriticalSectionCommitPhase();
 }
 
@@ -171,6 +173,7 @@ void CollectionShardingRuntime::rollbackCriticalSectionCommitPhaseToCatchUpPhase
 }
 
 void CollectionShardingRuntime::exitCriticalSection(const CSRLock&) {
+    LOGV2_DEBUG(0, 2, "Exiting critical section", "namespace"_attr = _nss);
     _critSec.exitCriticalSection();
 }
 
