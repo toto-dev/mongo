@@ -347,24 +347,9 @@ void RenameParticipantInstance::interrupt(Status status) noexcept {
                 "toNs"_attr = toNss(),
                 "error"_attr = redact(status));
 
-    auto releaseInMemoryCritSec = [](const NamespaceString& nss) {
-        auto client = cc().getServiceContext()->makeClient("RenameParticipantCleanupClient");
-        AlternativeClientRegion acr(client);
-        auto opCtxHolder = cc().makeOperationContext();
-        auto* opCtx = opCtxHolder.get();
-
-        UninterruptibleLockGuard noInterrupt(opCtx->lockState());
-        auto* const csr = CollectionShardingRuntime::get_UNSAFE(opCtx->getServiceContext(), nss);
-        auto csrLock = CollectionShardingRuntime::CSRLock::lockExclusive(opCtx, csr);
-        csr->exitCriticalSection(csrLock);
-        csr->clearFilteringMetadata(opCtx);
-    };
-
     invariant(status.isA<ErrorCategory::NotPrimaryError>() ||
               status.isA<ErrorCategory::ShutdownError>());
 
-    releaseInMemoryCritSec(fromNss());
-    releaseInMemoryCritSec(toNss());
     _invalidateFutures(status);
 }
 
