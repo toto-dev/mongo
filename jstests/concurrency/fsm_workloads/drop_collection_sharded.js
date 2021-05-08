@@ -60,8 +60,8 @@ var $config = (function() {
     };
 
     return {
-        threadCount: 12,
-        iterations: 64,
+        threadCount: 35,
+        iterations: 250,
         startState: 'init',
         data: {},
         states: states,
