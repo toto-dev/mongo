@@ -230,6 +230,7 @@ executor:
   hooks:
   - class: ContinuousStepdown
     config_stepdown: true
+    stepdown_interval_ms: 4000
     shard_stepdown: true
     use_stepdown_permitted_file: true
     wait_for_mongos_retarget: true
