@@ -6042,7 +6042,7 @@ tasks:
   commands:
   - func: "generate resmoke tasks"
     vars:
-      resmoke_args: --storageEngine=wiredTiger
+      resmoke_args: "--storageEngine=wiredTiger  --mongodSetParameters='{logComponentVerbosity: {sharding: 3, command: 3}}'"
       fallback_num_sub_suites: 3
       use_large_distro: "true"
       resmoke_jobs_max: 1
@@ -6052,7 +6052,7 @@ tasks:
   commands:
   - func: "generate resmoke tasks"
     vars:
-      resmoke_args: --storageEngine=wiredTiger
+      resmoke_args: "--storageEngine=wiredTiger  --mongodSetParameters='{logComponentVerbosity: {sharding: 3, command: 3}}'"
       fallback_num_sub_suites: 3
       use_large_distro: "true"
       resmoke_jobs_max: 1
@@ -6063,7 +6063,7 @@ tasks:
   - func: "generate resmoke tasks"
     vars:
       use_large_distro: "true"
-      resmoke_args: "--storageEngine=wiredTiger"
+      resmoke_args: "--storageEngine=wiredTiger  --mongodSetParameters='{logComponentVerbosity: {sharding: 3, command: 3}}'"
       resmoke_jobs_max: 1
       fallback_num_sub_suites: 3
 
@@ -6123,7 +6123,7 @@ tasks:
   - func: "generate resmoke tasks"
     vars:
       use_large_distro: "true"
-      resmoke_args: "--storageEngine=wiredTiger"
+      resmoke_args: "--storageEngine=wiredTiger  --mongodSetParameters='{logComponentVerbosity: {sharding: 3, command: 3}}'"
       resmoke_jobs_max: 1
       fallback_num_sub_suites: 3
 
@@ -6134,7 +6134,7 @@ tasks:
   - func: "generate resmoke tasks"
     vars:
       use_large_distro: "true"
-      resmoke_args: "--storageEngine=wiredTiger"
+      resmoke_args: "--storageEngine=wiredTiger  --mongodSetParameters='{logComponentVerbosity: {sharding: 3, command: 3}}'"
       resmoke_jobs_max: 1
       fallback_num_sub_suites: 3
 
@@ -6145,7 +6145,7 @@ tasks:
   - func: "generate resmoke tasks"
     vars:
       use_large_distro: "true"
-      resmoke_args: "--storageEngine=wiredTiger"
+      resmoke_args: "--storageEngine=wiredTiger  --mongodSetParameters='{logComponentVerbosity: {sharding: 3, command: 3}}'"
       resmoke_jobs_max: 1
       fallback_num_sub_suites: 3
 
